@@ -8,7 +8,7 @@ ENV PYTHONUNBUFFERED=1
 COPY requirements-api.txt .
 RUN pip install --no-cache-dir -r requirements-api.txt
 
-COPY cost_engine.py models.json ./
+COPY cost_engine.py prompt_analyzer.py models.json ./
 COPY server ./server
 
 # Render sets PORT; default 8000 for local docker run
