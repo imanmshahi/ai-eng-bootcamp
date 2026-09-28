@@ -132,8 +132,20 @@ def ask_openai(question: str) -> AskResponse:
     actual = _usage_usd(completion.usage, predicted)
     _spend_usd += actual
 
+    usage = completion.usage
+    if usage is not None:
+        tokens_used = usage.total_tokens
+    else:
+        # Same fallback as _usage_usd: use the pre-call prediction.
+        tokens_used = max(1, len(question) // 4 + 40) + max_tokens
+
     answer = completion.choices[0].message.content or "No answer returned."
-    return AskResponse(answer=answer.strip(), confidence=0.85)
+    return AskResponse(
+        answer=answer.strip(),
+        confidence=0.85,
+        tokens_used=tokens_used,
+        cost_usd=actual,
+    )
 
 
 def _assert_classifier_spend_allowed(prompt_text: str, *, spend_approved: bool) -> tuple[int, float]:

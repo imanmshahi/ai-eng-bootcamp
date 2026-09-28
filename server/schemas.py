@@ -10,6 +10,8 @@ class AskRequest(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     confidence: float = Field(..., ge=0.0, le=1.0)
+    tokens_used: int
+    cost_usd: float
 
 
 class EstimateRequest(BaseModel):
