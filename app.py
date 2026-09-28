@@ -12,9 +12,6 @@ Welcome. Use the **sidebar on the left** to switch apps:
 1. **Cost Estimator** — *course demo* of model cost math (`POST /estimate`)
 2. **Bootcamp Q&A** — ask questions (`POST /ask`)
 
-**Product Cost Estimator** (canonical): [ai-build-crew](https://github.com/CTATX/ai-build-crew)  
-**Shop / Jake:** [AutoZyte](https://github.com/BadLabz/autozyte)
-
 Start the API:
 """
 )

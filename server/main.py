@@ -27,8 +27,7 @@ def root():
         "estimate": "POST /estimate",
         "analyze": "POST /analyze",
         "ask": "POST /ask",
-        "autozyte": "https://github.com/BadLabz/autozyte",
-        "badlabz": "https://github.com/BadLabz",
+        "repo": "https://github.com/imanmshahi/ai-eng-bootcamp",
     }
 
 
