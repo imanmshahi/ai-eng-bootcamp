@@ -1,69 +1,17 @@
-# AI Eng Bootcamp — CT
+# ai-eng-bootcamp — Iman (TAI Labs cohort 19)
 
-TAI Labs bootcamp workspace. **Playbook (load on demand):** `docs/ai-eng-bootcamp-playbook.md`
+## Current task: Week 2 assignment (Maven), extend Week 1, don't rebuild
+1. POST /ingest: text + document_id (required) → chunk with overlap → embed (text-embedding-3-small) → UPSERT with metadata.
+   Chunk IDs = f"{document_id}-{i}". Re-ingesting a document replaces its old chunks.
+2. POST /search: question + k → top-k chunks with scores. No LLM. (Retrieval test.)
+3. Upgrade the existing POST /ask: retrieve → context-only prompt → cite chunk IDs → refuse with a fixed sentence when the answer isn't in the context.
+   Keep the Week 1 spend guard, tokens_used, cost_usd. Add citations: list[str] and refused: bool to AskResponse.
+4. corpus/ folder re-ingested on startup (the in-memory store is wiped when Render sleeps or redeploys). Add COPY corpus to the Dockerfile.
+5. Streamlit page with Ingest + Ask, pointed at the live API.
 
-**Invoke:** `Use TeamOS Bootcamp for [topic]` → loads playbook + `.claude/agents/ai-eng-bootcamp-agent.md`
-
-## Default mode
-
-**FACT → CONTROL POINT → ACTION** — concise. Expand on: **Grok**, **Deep dive**, **Harden this**, **Full context**.
-
-## Token rule
-
-Do **not** preload full TeamOS v2.0 or this playbook every session. Load playbook sections when CT invokes Bootcamp agent or asks run/debug/architecture questions in this repo.
-
-## TeamOS index
-
-| Agent | Invoke |
-|-------|--------|
-| **Bootcamp** | `Use TeamOS Bootcamp for [topic]` |
-| COS | `Use TeamOS COS for [topic]` |
-| Product | `Use TeamOS Product for [topic]` |
-| People Leadership | `Use TeamOS People Leadership for [topic]` |
-| Executive Comms | `Use TeamOS Executive for [topic]` |
-| Investigation | `Use TeamOS Investigation for [topic]` |
-| Documentation Evaluation | `Use TeamOS Documentation Evaluation for [topic]` |
-
-Agent stubs: [BadLabz/Projects](https://github.com/BadLabz/Projects) hub · local [.claude/agents/](.claude/agents/)
-
-Bootcamp agent: [.claude/agents/ai-eng-bootcamp-agent.md](.claude/agents/ai-eng-bootcamp-agent.md)
-
-Project index: [BadLabz/Projects](https://github.com/BadLabz/Projects) — `projects/autozyte`, `projects/spoiler-saver`, `projects/ai-eng-bootcamp`
-
-**Engineering TeamOS:** [ai-build-crew/TEAM_OS.md](https://github.com/CTATX/ai-build-crew/blob/main/TEAM_OS.md)
-
-## Product OS index
-
-| Asset | GitHub |
-|-------|--------|
-| **BadLabz Projects** (product hub) | [BadLabz/Projects](https://github.com/BadLabz/Projects) |
-| AutoZyte (shop platform) | [BadLabz/autozyte](https://github.com/BadLabz/autozyte) |
-| Spoiler Saver | Indexed in BadLabz/Projects |
-| ai-eng-bootcamp (TAI Labs / training) | [CTATX/ai-eng-bootcamp](https://github.com/CTATX/ai-eng-bootcamp) |
-| ai-build-crew | [CTATX/ai-build-crew](https://github.com/CTATX/ai-build-crew) |
-| badlabz legacy Product OS assets | [CTATX/badlabz](https://github.com/CTATX/badlabz) |
-
-## Build status
-
-| Piece | Status |
-|-------|--------|
-| `GET /health`, `POST /ask`, `POST /estimate`, `POST /analyze` | Done (course demo) |
-| Streamlit → API (Cost Estimator demo + Q&A) | Done |
-| **Cost Estimator product** | **[CTATX/ai-build-crew](https://github.com/CTATX/ai-build-crew)** — not this repo |
-| **AutoZyte** (shop, FerdAI, ZyteShelf, Zyren) | [BadLabz/autozyte](https://github.com/BadLabz/autozyte) · local `~/autozyte` |
-| Cloud Agent dev environment (`.cursor/environment.json`) | Done — validated end-to-end, merged (#3) |
-| Docker + deploy (bootcamp API) | Next (syllabus) |
-
-Use sidebar: **Cost Estimator** (demo) | **Bootcamp Q&A**
-
-Cost Estimator home: [`docs/cost-estimator-home.md`](docs/cost-estimator-home.md) · local `~/ai-build-crew`  
-AutoZyte: `~/autozyte` → [BadLabz/autozyte](https://github.com/BadLabz/autozyte) · [`docs/autozyte-split.md`](docs/autozyte-split.md)  
-System map + `/ask` spend guards: [`docs/experiences.md`](docs/experiences.md)
-
-### Every session — one command (recommended)
-
-```bash
-./start.sh
-```
-
-Starts API + Streamlit. **Ctrl+C** stops both. See playbook §4.
+## Rules
+- I'm learning: explain each change in plain words before making it.
+- Test retrieval before wiring the LLM.
+- Never read, print or commit .env. Never put keys in code.
+- Windows: line-ending noise shows ~40 "modified" files. Only stage files we actually changed.
+- Ignore docs/week2-*.md (an older notebook-based Week 2).

@@ -12,7 +12,8 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from server.schemas import AskResponse
+from server.rag import search as rag_search
+from server.schemas import AskResponse, SearchRequest
 
 load_dotenv()
 
@@ -98,6 +99,37 @@ def _usage_usd(usage: Any, predicted: float) -> float:
     return predicted
 
 
+_REFUSAL = "I don't have enough information in the provided documents to answer that."
+
+_RAG_SYSTEM_PROMPT = (
+    "You are a helpful assistant. Answer the user's question ONLY from the context "
+    "below. Cite every chunk you use by its ID in square brackets, like [notes.md#0002]. "
+    "If the answer is not in the context, reply exactly:\n"
+    f'"{_REFUSAL}"'
+)
+
+
+def _build_context_block(hits: list[dict]) -> str:
+    """Format retrieved chunks so the LLM sees [chunk_id] before each text."""
+    parts = []
+    for hit in hits:
+        parts.append(f"[{hit['chunk_id']}]\n{hit['text']}")
+    return "\n\n".join(parts)
+
+
+def _extract_citations(answer: str, retrieved_ids: set[str]) -> list[str]:
+    """Pull every [bracketed] token from the answer, keep only IDs that were actually retrieved."""
+    raw = re.findall(r"\[([^\]]+)\]", answer)
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    valid: list[str] = []
+    for cid in raw:
+        if cid in retrieved_ids and cid not in seen:
+            seen.add(cid)
+            valid.append(cid)
+    return valid
+
+
 def ask_openai(question: str) -> AskResponse:
     global _spend_usd
 
@@ -105,10 +137,33 @@ def ask_openai(question: str) -> AskResponse:
     if not api_key or api_key.startswith("sk-your-key"):
         raise ValueError("OPENAI_API_KEY is missing. Copy .env.example to .env and add your key.")
 
+    # ── Step 1: Retrieve top-k chunks ─────────────────────────────────
+    search_result = rag_search(SearchRequest(question=question, k=3))
+    search_cost = search_result.cost_usd
+    search_tokens = search_result.tokens_used
+
+    # If nothing has been ingested, refuse immediately — no LLM call needed.
+    if not search_result.results:
+        return AskResponse(
+            answer=_REFUSAL,
+            confidence=0.0,
+            tokens_used=search_tokens,
+            cost_usd=search_cost,
+            citations=[],
+            refused=True,
+        )
+
+    # ── Step 2: Build context block ───────────────────────────────────
+    hits = [h.model_dump() for h in search_result.results]
+    context_block = _build_context_block(hits)
+    retrieved_ids = {h["chunk_id"] for h in hits}
+
+    # ── Step 3: LLM call with RAG system prompt ───────────────────────
     max_tokens = _ask_max_tokens()
     ask_max_usd = _ask_max_usd()
     _reset_daily_if_needed()
-    predicted = _estimate_call_usd(question, max_tokens)
+    user_message = f"Context:\n{context_block}\n\nQuestion: {question}"
+    predicted = _estimate_call_usd(user_message, max_tokens)
     if _spend_usd + predicted > ask_max_usd:
         raise ValueError(
             f"ASK daily spend guard reached (ASK_MAX_USD={ask_max_usd}). "
@@ -120,11 +175,8 @@ def ask_openai(question: str) -> AskResponse:
     completion = client.chat.completions.create(
         model=DEFAULT_MODEL,
         messages=[
-            {
-                "role": "system",
-                "content": "You are a helpful tutor for an AI engineering bootcamp. Answer clearly and briefly.",
-            },
-            {"role": "user", "content": question},
+            {"role": "system", "content": _RAG_SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
         ],
         max_tokens=max_tokens,
     )
@@ -136,15 +188,23 @@ def ask_openai(question: str) -> AskResponse:
     if usage is not None:
         tokens_used = usage.total_tokens
     else:
-        # Same fallback as _usage_usd: use the pre-call prediction.
-        tokens_used = max(1, len(question) // 4 + 40) + max_tokens
+        tokens_used = max(1, len(user_message) // 4 + 40) + max_tokens
 
-    answer = completion.choices[0].message.content or "No answer returned."
+    # ── Step 4: Extract citations and detect refusal ──────────────────
+    answer = (completion.choices[0].message.content or "").strip()
+    refused = answer == _REFUSAL
+    citations = _extract_citations(answer, retrieved_ids)
+
+    total_cost = search_cost + actual
+    total_tokens = search_tokens + tokens_used
+
     return AskResponse(
-        answer=answer.strip(),
-        confidence=0.85,
-        tokens_used=tokens_used,
-        cost_usd=actual,
+        answer=answer,
+        confidence=0.0 if refused else 0.85,
+        tokens_used=total_tokens,
+        cost_usd=total_cost,
+        citations=citations,
+        refused=refused,
     )
 
 

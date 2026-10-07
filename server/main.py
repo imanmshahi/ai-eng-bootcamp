@@ -1,10 +1,16 @@
 """Week 1 server — /health, POST /ask, POST /estimate."""
 
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
 
 from server.analyze_service import run_analyze
 from server.estimate_service import run_estimate
 from server.openai_client import ask_openai
+from server.rag import ingest as run_ingest, search as run_search
 from server.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -12,9 +18,62 @@ from server.schemas import (
     AskResponse,
     EstimateRequest,
     EstimateResponse,
+    IngestRequest,
+    IngestResponse,
+    SearchRequest,
+    SearchResponse,
 )
 
-app = FastAPI(title="AI Eng Bootcamp API")
+logger = logging.getLogger("bootcamp")
+
+# ---------------------------------------------------------------------------
+# Startup: auto-load corpus/ into the RAG store
+# ---------------------------------------------------------------------------
+
+CORPUS_DIR = Path(__file__).resolve().parent.parent / "corpus"
+
+
+def load_corpus() -> None:
+    """Read every .txt in corpus/ and ingest it.  Filename sans extension = document_id."""
+    if not CORPUS_DIR.is_dir():
+        logger.info("No corpus/ directory found — skipping auto-load.")
+        return
+
+    txt_files = sorted(CORPUS_DIR.glob("*.txt"))  # sorted for deterministic order
+    if not txt_files:
+        logger.info("corpus/ exists but contains no .txt files.")
+        return
+
+    loaded, failed = 0, 0
+    for path in txt_files:
+        document_id = path.stem                    # "POL-114.txt" → "POL-114"
+        try:
+            text = path.read_text(encoding="utf-8")
+            result = run_ingest(
+                IngestRequest(document_id=document_id, text=text),
+            )
+            logger.info(
+                "Loaded %s → %d chunks (replaced %d)",
+                document_id, result.chunks_added, result.chunks_replaced,
+            )
+            loaded += 1
+        except Exception:
+            logger.exception("Failed to load %s — skipping.", path.name)
+            failed += 1
+
+    logger.info(
+        "Corpus auto-load complete: %d loaded, %d failed, %d total chunks in store.",
+        loaded, failed, loaded + failed,  # total files attempted
+    )
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    load_corpus()
+    yield
+
+
+app = FastAPI(title="AI Eng Bootcamp API", lifespan=lifespan)
 
 
 @app.get("/")
@@ -27,6 +86,8 @@ def root():
         "estimate": "POST /estimate",
         "analyze": "POST /analyze",
         "ask": "POST /ask",
+        "ingest": "POST /ingest",
+        "search": "POST /search",
         "repo": "https://github.com/imanmshahi/ai-eng-bootcamp",
     }
 
@@ -53,6 +114,34 @@ def analyze(body: AnalyzeRequest):
         return run_analyze(body)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/ingest", response_model=IngestResponse)
+def ingest(body: IngestRequest):
+    """Chunk + embed text into the in-memory RAG store."""
+    try:
+        return run_ingest(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Embedding call failed. Check your OpenAI key, billing, and network.",
+        ) from exc
+
+
+@app.post("/search", response_model=SearchResponse)
+def search(body: SearchRequest):
+    """Retrieve the top-k chunks most similar to the question (no LLM)."""
+    try:
+        return run_search(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Embedding call failed. Check your OpenAI key, billing, and network.",
+        ) from exc
 
 
 @app.post("/ask", response_model=AskResponse)

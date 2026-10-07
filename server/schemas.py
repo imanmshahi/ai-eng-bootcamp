@@ -1,6 +1,53 @@
 """JSON shapes for API endpoints — contracts between client and server."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+class IngestRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=200_000, example="RAG grounds answers in your own documents.")
+    document_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        pattern=r"^[A-Za-z0-9._:/-]+$",
+        example="week3-notes.md",
+        description="Stable ID for the document. Re-ingesting the same ID replaces its chunks.",
+    )
+    chunk_size: int = Field(800, ge=100, le=4_000)
+    chunk_overlap: int = Field(100, ge=0, le=1_000)
+
+    @model_validator(mode="after")
+    def _overlap_smaller_than_chunk(self) -> "IngestRequest":
+        if self.chunk_overlap >= self.chunk_size:
+            raise ValueError("chunk_overlap must be smaller than chunk_size.")
+        return self
+
+
+class IngestResponse(BaseModel):
+    document_id: str
+    chunks_added: int
+    chunks_replaced: int
+    total_chunks: int
+    tokens_used: int
+    cost_usd: float
+
+
+class SearchRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=10_000, description="Natural-language query to embed and match against stored chunks.")
+    k: int = Field(3, ge=1, le=20, description="How many top chunks to return.")
+
+
+class SearchHit(BaseModel):
+    chunk_id: str
+    document_id: str
+    score: float = Field(..., ge=-1.0, le=1.0, description="Cosine similarity (1.0 = identical).")
+    text: str
+
+
+class SearchResponse(BaseModel):
+    results: list[SearchHit]
+    tokens_used: int
+    cost_usd: float
 
 
 class AskRequest(BaseModel):
@@ -12,6 +59,8 @@ class AskResponse(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0)
     tokens_used: int
     cost_usd: float
+    citations: list[str] = Field(default_factory=list, description="Chunk IDs the answer cited that were actually retrieved.")
+    refused: bool = Field(False, description="True when no documents were available or the LLM could not answer from context.")
 
 
 class EstimateRequest(BaseModel):
