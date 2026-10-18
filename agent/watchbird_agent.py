@@ -6,7 +6,10 @@ Run: python watchbird_agent.py
 """
 
 import asyncio
+import json
 import os
+import re
+from typing import Literal, Optional
 
 import requests
 from dotenv import load_dotenv
@@ -14,6 +17,7 @@ from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
+from pydantic import BaseModel, Field, ValidationError
 
 load_dotenv()
 
@@ -22,6 +26,77 @@ API_BASE = os.getenv("API_BASE", "http://127.0.0.1:8000").rstrip("/")
 SEARCH_TIMEOUT_S = 90
 SEARCH_K = 5
 MAX_SEARCHES = 3
+
+# F4: stage used to be free text and drifted run to run ("in force", "enacted",
+# "Legislative implementation"). These are the only values allowed now.
+Stage = Literal[
+    "proposed",
+    "provisional",
+    "definitive",
+    "in_force",
+    "amended",
+    "expired",
+]
+STAGES: tuple[str, ...] = (
+    "proposed",
+    "provisional",
+    "definitive",
+    "in_force",
+    "amended",
+    "expired",
+)
+
+# Two ways to hold the model to the schema, switched by WATCHBIRD_OUTPUT_SCHEMA=1:
+#   off (default) - enumerate the values in the instruction, validate after the run.
+#                   Keeps the closing THINK line.
+#   on            - hand the schema to ADK, which enforces it on the final output.
+#                   Stronger guarantee, may cost the closing THINK line.
+USE_OUTPUT_SCHEMA = os.getenv("WATCHBIRD_OUTPUT_SCHEMA", "0") == "1"
+
+
+class Ping(BaseModel):
+    """The screening verdict. Also used as the ADK output schema when enabled."""
+
+    ping: bool
+    instrument: Optional[str] = None
+    stage: Optional[Stage] = None
+    fuels: list[str] = Field(default_factory=list)
+    why_it_matters: str = ""
+    citations: list[str] = Field(default_factory=list)
+
+
+def extract_json(text: str) -> Optional[dict]:
+    """Pull the JSON object out of a reply, fenced or bare."""
+    if not text:
+        return None
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    candidate = fenced.group(1) if fenced else None
+    if candidate is None:
+        brace = re.search(r"\{.*\}", text, re.DOTALL)
+        if brace is None:
+            return None
+        candidate = brace.group(0)
+    try:
+        parsed = json.loads(candidate)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def validate_ping(text: str) -> tuple[Optional[Ping], Optional[str]]:
+    """Validate a final reply against Ping. Returns (model, error_message)."""
+    parsed = extract_json(text)
+    if parsed is None:
+        return None, "reply contained no JSON object"
+    try:
+        return Ping.model_validate(parsed), None
+    except ValidationError as exc:
+        problems = []
+        for err in exc.errors():
+            field = ".".join(str(p) for p in err["loc"]) or "(root)"
+            got = err.get("input")
+            problems.append(f"{field}={got!r} rejected ({err['msg']})")
+        return None, "; ".join(problems)
 
 # --- Tool ---------------------------------------------------------------
 
@@ -102,20 +177,39 @@ Follow these rules in order:
 {
   "ping": true or false,
   "instrument": "the EU instrument involved, or null",
-  "stage": "the legislative or procedural stage, or null",
+  "stage": "exactly one of the allowed values below, or null",
   "fuels": ["the fuels concerned"],
   "why_it_matters": "one or two plain sentences",
   "citations": ["chunk IDs from retrieved chunks only"]
 }
-Set ping=false with empty citations when you triaged the item out under rule 1."""
+Set ping=false with empty citations when you triaged the item out under rule 1.
 
-watchbird = Agent(
+7. STAGE IS A CLOSED LIST. "stage" must be exactly one of these six strings, lowercase and
+   underscored, or null. Never invent a stage, never use prose like "in force" or "enacted":
+     "proposed"    - a proposal or draft not yet adopted
+     "provisional" - a provisional measure, e.g. a provisional anti-dumping duty
+     "definitive"  - a definitive measure, e.g. a definitive anti-dumping duty
+     "in_force"    - adopted and applying
+     "amended"     - in force and amended by a later act
+     "expired"     - no longer applying
+   Use null when the item was triaged out under rule 1, or when the retrieved text does not say."""
+
+_agent_kwargs = dict(
     name="watchbird",
     model=MODEL,
     description="Screens EU low-carbon-fuel news items and decides whether to ping, grounded in the regulation corpus.",
     instruction=INSTRUCTION,
     tools=[search_regulations],
 )
+if USE_OUTPUT_SCHEMA:
+    # ADK exposes tools during the thought loop and enforces the schema on the
+    # final output only (see LlmAgent.output_schema).
+    _agent_kwargs["output_schema"] = Ping
+
+watchbird = Agent(**_agent_kwargs)
+
+# Only these count as tool steps in the log; anything else is an ADK internal.
+OUR_TOOLS = {"search_regulations"}
 
 
 # --- Runner -------------------------------------------------------------
@@ -195,12 +289,16 @@ async def run_watchbird(item_text: str, on_step=None, verbose: bool = True):
         for part in event.content.parts:
             call = getattr(part, "function_call", None)
             if call is not None:
-                args = dict(call.args or {})
-                emit("ACT", f"{call.name}(query={args.get('query')!r})")
+                # With output_schema on, ADK delivers the final JSON through an
+                # internal set_model_response call. It is not a tool of ours.
+                if call.name in OUR_TOOLS:
+                    args = dict(call.args or {})
+                    emit("ACT", f"{call.name}(query={args.get('query')!r})")
                 continue
             response = getattr(part, "function_response", None)
             if response is not None:
-                emit("OBSERVE", _fmt_observe(response.response))
+                if getattr(response, "name", None) in OUR_TOOLS:
+                    emit("OBSERVE", _fmt_observe(response.response))
                 continue
             text = (getattr(part, "text", None) or "").strip()
             if not text:
@@ -216,6 +314,15 @@ async def run_watchbird(item_text: str, on_step=None, verbose: bool = True):
             else:
                 emit("THINK", remainder)
 
+    if final_text is None:
+        emit("CHECK", "INVALID: no final reply to validate")
+    else:
+        verdict, error = validate_ping(final_text)
+        if verdict is None:
+            emit("CHECK", f"INVALID: {error}")
+        else:
+            emit("CHECK", f"valid - ping={verdict.ping} stage={verdict.stage!r}")
+
     return steps, final_text
 
 
@@ -227,7 +334,9 @@ ITEMS = [
 
 
 async def main():
+    variant = "output_schema (ADK-enforced)" if USE_OUTPUT_SCHEMA else "instruction + Pydantic validation"
     print(f"Watchbird - model={MODEL}  API_BASE={API_BASE}  max_searches={MAX_SEARCHES}")
+    print(f"Stage enforcement: {variant}   allowed stages: {', '.join(STAGES)}")
     for label, item in ITEMS:
         print("\n" + "=" * 100)
         print(f"ITEM {label}: {item}")

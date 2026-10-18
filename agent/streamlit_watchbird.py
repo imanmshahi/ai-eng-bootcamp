@@ -5,18 +5,30 @@ Run: streamlit run streamlit_watchbird.py
 """
 
 import asyncio
-import json
-import re
 
 import streamlit as st
 
-from watchbird_agent import API_BASE, MAX_SEARCHES, MODEL, run_watchbird
+from watchbird_agent import (
+    API_BASE,
+    MAX_SEARCHES,
+    MODEL,
+    STAGES,
+    USE_OUTPUT_SCHEMA,
+    run_watchbird,
+    validate_ping,
+)
 
 st.set_page_config(page_title="Watchbird", page_icon="(o>", layout="centered")
 
 st.title("Watchbird")
 st.caption(
     f"model `{MODEL}` - corpus API `{API_BASE}` - max {MAX_SEARCHES} searches per run"
+)
+st.caption(
+    "stage enforcement: "
+    + ("ADK `output_schema`" if USE_OUTPUT_SCHEMA else "instruction + Pydantic validation")
+    + " - allowed stages: "
+    + ", ".join(f"`{s}`" for s in STAGES)
 )
 
 EXAMPLES = {
@@ -35,24 +47,8 @@ LABEL = {
     "THINK": ("THINK", "grey"),
     "ACT": ("ACT", "blue"),
     "OBSERVE": ("OBSERVE", "violet"),
+    "CHECK": ("CHECK", "green"),
 }
-
-
-def extract_json(text: str):
-    """Models often fence their JSON; pull the object out if they did."""
-    if not text:
-        return None
-    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-    candidate = fenced.group(1) if fenced else text
-    if not fenced:
-        brace = re.search(r"\{.*\}", candidate, re.DOTALL)
-        if not brace:
-            return None
-        candidate = brace.group(0)
-    try:
-        return json.loads(candidate)
-    except json.JSONDecodeError:
-        return None
 
 
 if st.button("Run", type="primary", disabled=not item.strip()):
@@ -76,13 +72,13 @@ if st.button("Run", type="primary", disabled=not item.strip()):
         st.info("No search was run - the agent triaged this item out on rule 1.")
 
     st.subheader("Ping")
-    parsed = extract_json(final)
-    if parsed is None:
-        st.warning("The agent did not return parseable JSON. Raw reply:")
+    verdict, error = validate_ping(final or "")
+    if verdict is None:
+        st.error(f"Output failed Ping validation: {error}")
         st.code(final or "(no response)", language=None)
     else:
-        if parsed.get("ping"):
-            st.success("ping: TRUE")
+        if verdict.ping:
+            st.success(f"ping: TRUE - stage: {verdict.stage}")
         else:
-            st.info("ping: FALSE")
-        st.json(parsed)
+            st.info(f"ping: FALSE - stage: {verdict.stage}")
+        st.json(verdict.model_dump())
