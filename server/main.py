@@ -26,6 +26,10 @@ from server.schemas import (
 
 logger = logging.getLogger("bootcamp")
 
+# Uvicorn configures only its own loggers, so our records would propagate to a
+# root logger that defaults to WARNING and drop the ingest lines below.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
+
 # ---------------------------------------------------------------------------
 # Startup: auto-load corpus/ into the RAG store
 # ---------------------------------------------------------------------------
@@ -44,7 +48,7 @@ def load_corpus() -> None:
         logger.info("corpus/ exists but contains no .txt files.")
         return
 
-    loaded, failed = 0, 0
+    loaded, failed, total_chunks = 0, 0, 0
     for path in txt_files:
         document_id = path.stem                    # "POL-114.txt" → "POL-114"
         try:
@@ -57,13 +61,14 @@ def load_corpus() -> None:
                 document_id, result.chunks_added, result.chunks_replaced,
             )
             loaded += 1
+            total_chunks = result.total_chunks
         except Exception:
             logger.exception("Failed to load %s — skipping.", path.name)
             failed += 1
 
     logger.info(
         "Corpus auto-load complete: %d loaded, %d failed, %d total chunks in store.",
-        loaded, failed, loaded + failed,  # total files attempted
+        loaded, failed, total_chunks,
     )
 
 

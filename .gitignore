@@ -7,3 +7,6 @@ data/
 # Product trees live in BadLabz — never re-nest here
 /autozyte/
 /badlabz-projects/
+
+# Raw EUR-Lex HTML downloads — source material, not committed
+corpus_raw/

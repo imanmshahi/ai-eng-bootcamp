@@ -1,0 +1,25 @@
+# Renewable Energy Directive (RED), Directive (EU) 2018/2001, Art. 25 - consolidated version dated 16/07/2024 (CELEX 02018L2001-20240716, as amended by Directive (EU) 2023/2413 'RED III'; retrieved from EUR-Lex 2026-10-18)
+
+Article 25
+Increase of renewable energy and reduction of greenhouse gas intensity in the transport sector
+1. Each Member State shall set an obligation on fuel suppliers to ensure that:
+(a) the amount of renewable fuels and renewable electricity supplied to the transport sector leads to a:
+(i) share of renewable energy within the final consumption of energy in the transport sector of at least 29 % by 2030; or
+(ii) greenhouse gas intensity reduction of at least 14,5 % by 2030, compared to the baseline set out in Article 27(1), point (b), in accordance with an indicative trajectory set by the Member State;
+(b) the combined share of advanced biofuels and biogas produced from the feedstock listed in Part A of Annex IX and of renewable fuels of non-biological origin in the energy supplied to the transport sector is at least 1 % in 2025 and 5,5 % in 2030, of which a share of at least 1 percentage point is from renewable fuels of non-biological origin in 2030.
+Member States are encouraged to set differentiated targets for advanced biofuels and biogas produced from the feedstock listed in Part A of Annex IX and renewable fuels of non-biological origin at national level in order to fulfil the obligation set out in the first subparagraph, point (b), of this paragraph, in a way that the development of both fuels is promoted and expanded.
+Member States with maritime ports shall endeavour to ensure that as of 2030 the share of renewable fuels of non-biological origin in the total amount of energy supplied to the maritime transport sector is at least 1,2 %.
+Member States shall, in their integrated national energy and climate progress reports submitted pursuant to Article 17 of Regulation (EU) 2018/1999, report on the share of renewable energy within the final consumption of energy in the transport sector, including in the maritime transport sector, as well as on their greenhouse gas intensity reduction.
+If the list of feedstock set out in Part A of Annex IX is amended in accordance with Article 28(6), Member States may increase their minimum share of advanced biofuels and biogas produced from that feedstock in the energy supplied to the transport sector accordingly.
+2. For the calculation of the targets referred to in paragraph 1, first subparagraph, point (a), and the shares referred to in paragraph 1, first subparagraph, point (b), Member States:
+(a) shall take into account renewable fuels of non-biological origin also when they are used as intermediate products for the production of:
+(i) conventional transport fuels; or
+(ii) biofuels, provided that the greenhouse gas emissions reduction achieved by the use of renewable fuels of non-biological origin is not counted in the calculation of the greenhouse gas emissions savings of the biofuels;
+(b) may take into account biogas that is injected into the national gas transmission and distribution infrastructure.
+3. For the calculation of the targets set in paragraph 1, first subparagraph, point (a), Member States may take into account recycled carbon fuels.
+When designing the obligation on fuel suppliers, Member States may:
+(a) exempt fuel suppliers supplying electricity or renewable fuels of non-biological origin from the requirement to comply with the minimum share of advanced biofuels and biogas produced from the feedstock listed in Part A of Annex IX with respect to those fuels;
+(b) set the obligation by means of measures targeting volumes, energy content or greenhouse gas emissions;
+(c) distinguish between different energy carriers;
+(d) distinguish between the maritime transport sector and other sectors.
+4. Member States shall establish a mechanism allowing fuel suppliers in their territory to exchange credits for supplying renewable energy to the transport sector. Economic operators that supply renewable electricity to electric vehicles through public recharging points shall receive credits, irrespectively of whether the economic operators are subject to the obligation set by the Member State on fuel suppliers, and may sell those credits to fuel suppliers, which shall be allowed to use the credits to fulfil the obligation set out in paragraph 1, first subparagraph. Member States may include private recharging points in that mechanism provided it can be demonstrated that renewable electricity supplied to those private recharging points is provided solely to electric vehicles.

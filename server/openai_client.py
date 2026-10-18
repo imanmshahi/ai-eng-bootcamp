@@ -117,6 +117,19 @@ def _build_context_block(hits: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
+def _contains_refusal(answer: str) -> bool:
+    """True when the fixed refusal sentence appears anywhere in the answer.
+
+    The model sometimes hedges first and refuses only in a closing sentence, and
+    sometimes swaps the straight apostrophe for a curly one, so normalise both
+    before looking for the sentence.
+    """
+    def norm(text: str) -> str:
+        return re.sub(r"\s+", " ", text.replace("’", "'")).strip().lower()
+
+    return norm(_REFUSAL) in norm(answer)
+
+
 def _extract_citations(answer: str, retrieved_ids: set[str]) -> list[str]:
     """Pull every [bracketed] token from the answer, keep only IDs that were actually retrieved."""
     raw = re.findall(r"\[([^\]]+)\]", answer)
@@ -138,7 +151,7 @@ def ask_openai(question: str) -> AskResponse:
         raise ValueError("OPENAI_API_KEY is missing. Copy .env.example to .env and add your key.")
 
     # ── Step 1: Retrieve top-k chunks ─────────────────────────────────
-    search_result = rag_search(SearchRequest(question=question, k=3))
+    search_result = rag_search(SearchRequest(question=question, k=5))
     search_cost = search_result.cost_usd
     search_tokens = search_result.tokens_used
 
@@ -192,7 +205,7 @@ def ask_openai(question: str) -> AskResponse:
 
     # ── Step 4: Extract citations and detect refusal ──────────────────
     answer = (completion.choices[0].message.content or "").strip()
-    refused = answer == _REFUSAL
+    refused = _contains_refusal(answer)
     citations = _extract_citations(answer, retrieved_ids)
 
     total_cost = search_cost + actual
