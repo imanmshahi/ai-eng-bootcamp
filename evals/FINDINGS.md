@@ -140,7 +140,11 @@ stages (`rumour`, `leaked_draft`, `trilogue`) that a watch tool exists to catch,
 `transposed`/`review`. Treating the two as interchangeable would silently lose those states.
 
 **Not yet decided.** Whether to adopt the capstone's ten values directly in the agent, or keep a
-narrow enum plus an explicit mapping layer. Adopting the ten values means the agent can emit
-stages the current corpus holds no evidence for, which conflicts with the grounding rule — the
-corpus has no text about rumours or leaked drafts. That tension needs resolving before the enums
-are merged.
+narrow enum plus an explicit mapping layer. Adopting the ten values appeared to mean the agent
+could emit stages the current corpus holds no evidence for, which would conflict with the
+grounding rule — the corpus has no text about rumours or leaked drafts. That apparent tension is
+resolved below.
+
+**Resolution for the design tension:** stage describes the NEWS ITEM's position in the pipeline,
+not the corpus. Only why_it_matters needs corpus grounding. So adopting all 10 capstone values
+does not conflict with the grounding rule.
