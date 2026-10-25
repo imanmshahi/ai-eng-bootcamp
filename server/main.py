@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException
 from server.analyze_service import run_analyze
 from server.estimate_service import run_estimate
 from server.openai_client import ask_openai
-from server.rag import ingest as run_ingest, search as run_search
+from server.rag import ingest as run_ingest, search as run_search, store_chunk_count
 from server.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -36,9 +36,27 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(
 
 CORPUS_DIR = Path(__file__).resolve().parent.parent / "corpus"
 
+# Attempts per file before giving up. Embedding calls time out transiently (F6), and a single
+# timeout used to cost the whole document for the lifetime of the process.
+CORPUS_LOAD_ATTEMPTS = 3
+
+# Startup result, read by /health so an incomplete store cannot report itself as healthy.
+# chunks_total is read back from the store rather than from the last ingest response, which
+# went stale whenever the final file was the one that failed.
+_corpus_status: dict[str, object] = {
+    "expected_documents": 0,
+    "documents_loaded": 0,
+    "chunks_total": 0,
+    "failed_documents": [],
+}
+
 
 def load_corpus() -> None:
-    """Read every .txt in corpus/ and ingest it.  Filename sans extension = document_id."""
+    """Read every .txt in corpus/ and ingest it.  Filename sans extension = document_id.
+
+    Each file gets CORPUS_LOAD_ATTEMPTS tries: the OpenAI embedding call fails transiently, and
+    a skipped file leaves the API serving a silently incomplete corpus.
+    """
     if not CORPUS_DIR.is_dir():
         logger.info("No corpus/ directory found — skipping auto-load.")
         return
@@ -48,27 +66,45 @@ def load_corpus() -> None:
         logger.info("corpus/ exists but contains no .txt files.")
         return
 
-    loaded, failed, total_chunks = 0, 0, 0
+    _corpus_status["expected_documents"] = len(txt_files)
+    loaded, failed_docs = 0, []
+
     for path in txt_files:
         document_id = path.stem                    # "POL-114.txt" → "POL-114"
-        try:
-            text = path.read_text(encoding="utf-8")
-            result = run_ingest(
-                IngestRequest(document_id=document_id, text=text),
-            )
-            logger.info(
-                "Loaded %s → %d chunks (replaced %d)",
-                document_id, result.chunks_added, result.chunks_replaced,
-            )
-            loaded += 1
-            total_chunks = result.total_chunks
-        except Exception:
-            logger.exception("Failed to load %s — skipping.", path.name)
-            failed += 1
+        for attempt in range(1, CORPUS_LOAD_ATTEMPTS + 1):
+            try:
+                text = path.read_text(encoding="utf-8")
+                result = run_ingest(
+                    IngestRequest(document_id=document_id, text=text),
+                )
+                logger.info(
+                    "Loaded %s → %d chunks (replaced %d)%s",
+                    document_id, result.chunks_added, result.chunks_replaced,
+                    f" on attempt {attempt}" if attempt > 1 else "",
+                )
+                loaded += 1
+                break
+            except Exception:
+                if attempt < CORPUS_LOAD_ATTEMPTS:
+                    logger.warning(
+                        "Attempt %d/%d failed for %s — retrying.",
+                        attempt, CORPUS_LOAD_ATTEMPTS, path.name,
+                    )
+                    continue
+                logger.exception(
+                    "Failed to load %s after %d attempts — skipping.",
+                    path.name, CORPUS_LOAD_ATTEMPTS,
+                )
+                failed_docs.append(document_id)
+
+    _corpus_status["documents_loaded"] = loaded
+    _corpus_status["failed_documents"] = failed_docs
+    _corpus_status["chunks_total"] = store_chunk_count()
 
     logger.info(
-        "Corpus auto-load complete: %d loaded, %d failed, %d total chunks in store.",
-        loaded, failed, total_chunks,
+        "Corpus auto-load complete: %d loaded, %d failed, %d total chunks in store.%s",
+        loaded, len(failed_docs), _corpus_status["chunks_total"],
+        f"  DEGRADED — missing: {', '.join(failed_docs)}" if failed_docs else "",
     )
 
 
@@ -99,8 +135,20 @@ def root():
 
 @app.get("/health")
 def health():
-    """Heartbeat check. No OpenAI, no logic — just 'am I running?'"""
-    return {"status": "ok"}
+    """Heartbeat plus corpus completeness. No OpenAI call — reads the startup result only.
+
+    status is "degraded" when any corpus file failed to ingest. Without this, a process serving
+    32 of 40 chunks answered "ok" and every refusal about the missing document looked legitimate
+    (F6 in evals/FINDINGS.md).
+    """
+    failed = _corpus_status["failed_documents"]
+    return {
+        "status": "degraded" if failed else "ok",
+        "documents_loaded": _corpus_status["documents_loaded"],
+        "chunks_total": _corpus_status["chunks_total"],
+        "expected_documents": _corpus_status["expected_documents"],
+        **({"failed_documents": failed} if failed else {}),
+    }
 
 
 @app.post("/estimate", response_model=EstimateResponse)
