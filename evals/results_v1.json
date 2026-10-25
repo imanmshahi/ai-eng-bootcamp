@@ -1,0 +1,726 @@
+{
+  "traces_evaluated": 20,
+  "checks_run": [
+    "citations_were_retrieved",
+    "refusal_consistency",
+    "no_uncited_numbers",
+    "declined_despite_retrieval",
+    "over_refusal"
+  ],
+  "targets": {
+    "citations_were_retrieved": "C3 citation-mismatch",
+    "refusal_consistency": "F2 class (refusal/citation contradiction)",
+    "no_uncited_numbers": "C2 under-synthesis",
+    "declined_despite_retrieval": "C2 under-synthesis",
+    "over_refusal": "C2 under-synthesis (needs answerable label)"
+  },
+  "over_refusal": {
+    "answerable_yes": 14,
+    "wrongly_refused": 4,
+    "wrongly_refused_ids": [
+      "q09",
+      "q11",
+      "q12",
+      "q14"
+    ],
+    "rate": 0.2857142857142857,
+    "traces_labelled": 20,
+    "traces_unlabelled": 0
+  },
+  "counts": {
+    "traces_all_checks_passed": 15,
+    "traces_with_at_least_one_failure": 5,
+    "total_check_runs": 100,
+    "total_failures": 6,
+    "per_check": {
+      "citations_were_retrieved": {
+        "passed": 20,
+        "failed": 0,
+        "failed_ids": []
+      },
+      "refusal_consistency": {
+        "passed": 20,
+        "failed": 0,
+        "failed_ids": []
+      },
+      "no_uncited_numbers": {
+        "passed": 20,
+        "failed": 0,
+        "failed_ids": []
+      },
+      "declined_despite_retrieval": {
+        "passed": 18,
+        "failed": 2,
+        "failed_ids": [
+          "q12",
+          "q13"
+        ]
+      },
+      "over_refusal": {
+        "passed": 16,
+        "failed": 4,
+        "failed_ids": [
+          "q09",
+          "q11",
+          "q12",
+          "q14"
+        ]
+      }
+    }
+  },
+  "traces": [
+    {
+      "id": "q01",
+      "question": "Under RED Article 25, what obligation must each Member State place on fuel suppliers?",
+      "answerable": "Yes",
+      "refused": false,
+      "n_citations": 1,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 1 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 1 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "2 number(s) stated, 1 citation(s) present"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Yes and answered"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q02",
+      "question": "What must aviation fuel suppliers ensure about the aviation fuel they make available at each Union airport?",
+      "answerable": "Yes",
+      "refused": false,
+      "n_citations": 2,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 2 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 2 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "no percentage or decimal rate in the answer"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Yes and answered"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q03",
+      "question": "Which feedstocks are excluded from the calculation of the minimum shares of SAF?",
+      "answerable": "Yes",
+      "refused": false,
+      "n_citations": 1,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 1 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 1 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "no percentage or decimal rate in the answer"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Yes and answered"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q04",
+      "question": "What happens if an aviation fuel supplier fails to supply the minimum shares for a given reporting period?",
+      "answerable": "Yes",
+      "refused": false,
+      "n_citations": 1,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 1 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 1 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "no percentage or decimal rate in the answer"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Yes and answered"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q05",
+      "question": "What must a company present to Member State customs authorities to receive its individual anti-dumping duty rate?",
+      "answerable": "Yes",
+      "refused": false,
+      "n_citations": 1,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 1 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 1 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "no percentage or decimal rate in the answer"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Yes and answered"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q06",
+      "question": "What credit exchange mechanism must Member States establish for fuel suppliers in the transport sector?",
+      "answerable": "Yes",
+      "refused": false,
+      "n_citations": 2,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 2 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 2 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "no percentage or decimal rate in the answer"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Yes and answered"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q07",
+      "question": "What is the minimum share of synthetic aviation fuel required each year in 2030 and 2031?",
+      "answerable": "Yes",
+      "refused": false,
+      "n_citations": 1,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 1 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 1 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "2 number(s) stated, 1 citation(s) present"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Yes and answered"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q08",
+      "question": "What definitive anti-dumping duty rate applies to the Jiaao Group?",
+      "answerable": "Yes",
+      "refused": false,
+      "n_citations": 1,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 1 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 1 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "1 number(s) stated, 1 citation(s) present"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Yes and answered"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q09",
+      "question": "What is the TARIC additional code for Tangshan Jinlihai Biodiesel Co., Ltd?",
+      "answerable": "Yes",
+      "refused": true,
+      "n_citations": 0,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "no chunk IDs cited, nothing to verify"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=True with no citations"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "no percentage or decimal rate in the answer"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": false,
+          "reason": "answerable=Yes but returned the fixed refusal sentence (5 chunk(s) retrieved) — over-refusal"
+        }
+      },
+      "failed_checks": [
+        "over_refusal"
+      ],
+      "all_passed": false
+    },
+    {
+      "id": "q10",
+      "question": "What share of SAF applies from 1 January 2050, and how much of it must be synthetic aviation fuel?",
+      "answerable": "Yes",
+      "refused": false,
+      "n_citations": 1,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 1 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 1 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "2 number(s) stated, 1 citation(s) present"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Yes and answered"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q11",
+      "question": "What duty rate applies to cooperating companies listed in the Annex that were not sampled?",
+      "answerable": "Yes",
+      "refused": true,
+      "n_citations": 0,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "no chunk IDs cited, nothing to verify"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=True with no citations"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "no percentage or decimal rate in the answer"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": false,
+          "reason": "answerable=Yes but returned the fixed refusal sentence (5 chunk(s) retrieved) — over-refusal"
+        }
+      },
+      "failed_checks": [
+        "over_refusal"
+      ],
+      "all_passed": false
+    },
+    {
+      "id": "q12",
+      "question": "How does the 2030 renewable energy target for transport in RED Article 25 compare with the SAF share aviation fuel suppliers must reach from 2030?",
+      "answerable": "Yes",
+      "refused": false,
+      "n_citations": 2,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 2 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 2 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "2 number(s) stated, 2 citation(s) present"
+        },
+        "declined_despite_retrieval": {
+          "passed": false,
+          "reason": "hedged (not detailed) despite 5 chunks retrieved"
+        },
+        "over_refusal": {
+          "passed": false,
+          "reason": "answerable=Yes but hedged (not detailed) (5 chunk(s) retrieved) — over-refusal"
+        }
+      },
+      "failed_checks": [
+        "declined_despite_retrieval",
+        "over_refusal"
+      ],
+      "all_passed": false
+    },
+    {
+      "id": "q13",
+      "question": "Are sustainable aviation fuels excluded from the Chinese biodiesel anti-dumping duties, and what SAF share does ReFuelEU Aviation require from 2030?",
+      "answerable": "Partly",
+      "refused": false,
+      "n_citations": 2,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 2 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 2 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "1 number(s) stated, 2 citation(s) present"
+        },
+        "declined_despite_retrieval": {
+          "passed": false,
+          "reason": "hedged (not detailed) despite 5 chunks retrieved"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Partly, hedged (not detailed) — not scored (see docstring)"
+        }
+      },
+      "failed_checks": [
+        "declined_despite_retrieval"
+      ],
+      "all_passed": false
+    },
+    {
+      "id": "q14",
+      "question": "What does RED Article 25 require for renewable fuels of non-biological origin, and what synthetic aviation fuel shares does ReFuelEU Annex I set?",
+      "answerable": "Yes",
+      "refused": true,
+      "n_citations": 0,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "no chunk IDs cited, nothing to verify"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=True with no citations"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "no percentage or decimal rate in the answer"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": false,
+          "reason": "answerable=Yes but returned the fixed refusal sentence (5 chunk(s) retrieved) — over-refusal"
+        }
+      },
+      "failed_checks": [
+        "over_refusal"
+      ],
+      "all_passed": false
+    },
+    {
+      "id": "q15",
+      "question": "The biodiesel investigation refers to the EU Renewable Energy Directive - what transport obligation does RED Article 25 actually set?",
+      "answerable": "Yes",
+      "refused": false,
+      "n_citations": 2,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 2 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 2 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "2 number(s) stated, 2 citation(s) present"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Yes and answered"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q16",
+      "question": "What anti-dumping duty applies to Indonesian palm oil biodiesel?",
+      "answerable": "No",
+      "refused": true,
+      "n_citations": 0,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "no chunk IDs cited, nothing to verify"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=True with no citations"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "no percentage or decimal rate in the answer"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=No, returned the fixed refusal sentence — declining is correct here"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q17",
+      "question": "What SAF mandate applies to maritime shipping under FuelEU Maritime?",
+      "answerable": "No",
+      "refused": true,
+      "n_citations": 0,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "no chunk IDs cited, nothing to verify"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=True with no citations"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "no percentage or decimal rate in the answer"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=No, returned the fixed refusal sentence — declining is correct here"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q18",
+      "question": "What penalty in euros per tonne applies to aviation fuel suppliers that miss their SAF target?",
+      "answerable": "No",
+      "refused": true,
+      "n_citations": 0,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "no chunk IDs cited, nothing to verify"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=True with no citations"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "no percentage or decimal rate in the answer"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=No, returned the fixed refusal sentence — declining is correct here"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q19",
+      "question": "saf 2030 how much",
+      "answerable": "Partly",
+      "refused": false,
+      "n_citations": 1,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 1 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 1 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "6 number(s) stated, 1 citation(s) present"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Partly, answered — not scored (see docstring)"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    },
+    {
+      "id": "q20",
+      "question": "what about the duties",
+      "answerable": "Partly",
+      "refused": false,
+      "n_citations": 2,
+      "n_retrieved": 5,
+      "checks": {
+        "citations_were_retrieved": {
+          "passed": true,
+          "reason": "all 2 cited ID(s) were retrieved"
+        },
+        "refusal_consistency": {
+          "passed": true,
+          "reason": "refused=False with 2 citation(s)"
+        },
+        "no_uncited_numbers": {
+          "passed": true,
+          "reason": "no percentage or decimal rate in the answer"
+        },
+        "declined_despite_retrieval": {
+          "passed": true,
+          "reason": "no hedge phrase (5 chunk(s) retrieved)"
+        },
+        "over_refusal": {
+          "passed": true,
+          "reason": "answerable=Partly, answered — not scored (see docstring)"
+        }
+      },
+      "failed_checks": [],
+      "all_passed": true
+    }
+  ],
+  "traces_file": "evals\\traces_v1.jsonl",
+  "labels_file": "evals\\labels_v1.jsonl"
+}

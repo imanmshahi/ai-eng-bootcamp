@@ -43,16 +43,61 @@ def _reset_daily_if_needed() -> None:
 
 
 def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
-    """Fixed-size character windows; each window starts chunk_size - chunk_overlap after the last."""
+    """Pack whole lines up to chunk_size; start a new chunk rather than cutting a line.
+
+    Fixed-size character windows used to split tables mid-row, which is what F1 traced q09 and
+    q11 to: a row like "Tangshan Jinlihai Biodiesel Co., Ltd | 89FQ" was cut in half, and the
+    half-rows embedded close to nothing a user would type. Packing by line keeps each row intact.
+
+    A line longer than chunk_size is still split into fixed windows, as before — nothing else can
+    be done with it. Overlap is carried as whole trailing lines totalling at most chunk_overlap
+    characters, so a chunk boundary repeats context without repeating a fragment.
+    """
     step = chunk_size - chunk_overlap
-    chunks = []
-    for start in range(0, len(text), step):
-        chunk = text[start : start + chunk_size].strip()
+
+    # Units are whole lines; an over-long line is pre-split so that every unit fits chunk_size.
+    units: list[str] = []
+    for line in text.splitlines(keepends=True):
+        if len(line) <= chunk_size:
+            units.append(line)
+            continue
+        for start in range(0, len(line), step):
+            units.append(line[start : start + chunk_size])
+            if start + chunk_size >= len(line):
+                break
+
+    chunks: list[str] = []
+    i = 0
+    while i < len(units):
+        current: list[str] = []
+        current_len, j = 0, i
+        # `not current` guarantees progress: a unit always goes somewhere, even alone.
+        while j < len(units) and (not current or current_len + len(units[j]) <= chunk_size):
+            current.append(units[j])
+            current_len += len(units[j])
+            j += 1
+
+        chunk = "".join(current).strip()
         if chunk:
             chunks.append(chunk)
-        if start + chunk_size >= len(text):
+        if j >= len(units):
             break
+
+        # Step back over whole trailing lines worth at most chunk_overlap characters. k > i keeps
+        # the start index advancing, so this cannot loop.
+        back, back_len, k = 0, 0, j - 1
+        while k > i and back_len + len(units[k]) <= chunk_overlap:
+            back_len += len(units[k])
+            back += 1
+            k -= 1
+        i = j - back
+
     return chunks
+
+
+def store_chunk_count() -> int:
+    """How many chunks are in the in-memory store right now. Read-only; used by /health."""
+    return len(_store)
 
 
 def chunk_id(document_id: str, index: int) -> str:

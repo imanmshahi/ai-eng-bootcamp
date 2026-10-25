@@ -1,0 +1,38 @@
+# evals/questions_v1.txt - trace set v1
+# 20 questions against the three corpus documents:
+#   RED3-ART25       Renewable Energy Directive 2018/2001 Art. 25 (consolidated 16/07/2024)
+#   REFUELEU-ART4    ReFuelEU Aviation Regulation (EU) 2023/2405 Art. 4 + Annex I
+#   TRADE-BIODIESEL  Commission Implementing Regulation (EU) 2025/261 (consolidated 16/09/2025)
+#
+# Lines are "qNN  <question>". Groups below describe how each question was chosen,
+# not what the answer should be.
+
+# --- 6 answerable from a single chunk (straightforward prose lookups) ---
+q01  Under RED Article 25, what obligation must each Member State place on fuel suppliers?
+q02  What must aviation fuel suppliers ensure about the aviation fuel they make available at each Union airport?
+q03  Which feedstocks are excluded from the calculation of the minimum shares of SAF?
+q04  What happens if an aviation fuel supplier fails to supply the minimum shares for a given reporting period?
+q05  What must a company present to Member State customs authorities to receive its individual anti-dumping duty rate?
+q06  What credit exchange mechanism must Member States establish for fuel suppliers in the transport sector?
+
+# --- 5 needing a figure from a table or annex list ---
+q07  What is the minimum share of synthetic aviation fuel required each year in 2030 and 2031?
+q08  What definitive anti-dumping duty rate applies to the Jiaao Group?
+q09  What is the TARIC additional code for Tangshan Jinlihai Biodiesel Co., Ltd?
+q10  What share of SAF applies from 1 January 2050, and how much of it must be synthetic aviation fuel?
+q11  What duty rate applies to cooperating companies listed in the Annex that were not sampled?
+
+# --- 4 spanning two documents ---
+q12  How does the 2030 renewable energy target for transport in RED Article 25 compare with the SAF share aviation fuel suppliers must reach from 2030?
+q13  Are sustainable aviation fuels excluded from the Chinese biodiesel anti-dumping duties, and what SAF share does ReFuelEU Aviation require from 2030?
+q14  What does RED Article 25 require for renewable fuels of non-biological origin, and what synthetic aviation fuel shares does ReFuelEU Annex I set?
+q15  The biodiesel investigation refers to the EU Renewable Energy Directive - what transport obligation does RED Article 25 actually set?
+
+# --- 3 answerable-sounding but not in the corpus ---
+q16  What anti-dumping duty applies to Indonesian palm oil biodiesel?
+q17  What SAF mandate applies to maritime shipping under FuelEU Maritime?
+q18  What penalty in euros per tonne applies to aviation fuel suppliers that miss their SAF target?
+
+# --- 2 ambiguous or badly phrased, as a real user would type them ---
+q19  saf 2030 how much
+q20  what about the duties
