@@ -1,6 +1,7 @@
 """Week 1 server — /health, POST /ask, POST /estimate."""
 
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -45,12 +46,22 @@ logger = logging.getLogger("bootcamp")
 # a reading — a new container has a new value and uptime_seconds near zero, while
 # stories_remembered carries over, which is the whole claim the Postgres store exists to support.
 #
-# This is a partial fix for the durable gap named in F11: identifying *which process answered*.
-# The complete version is a build identifier, and Render injects one as RENDER_GIT_COMMIT, but
-# reporting it would mean printing an environment variable value, which CLAUDE.md rule 1 forbids
-# without exception. That rule is about secrets and a commit SHA is not one, so the carve-out may
-# be worth making - but it is a change to an absolute rule, and that is Iman's call, not mine.
+# Together with build_commit below, this closes the durable gap named in F11: identifying *which
+# build answered*. Reporting these is allowed by CLAUDE.md rule 6, which permits exactly the
+# commit SHA, the start time and the uptime. Rule 1 still forbids every other environment
+# variable value, so nothing else from the environment belongs in this response.
 _STARTED_AT = datetime.now(timezone.utc)
+
+
+def build_commit() -> str | None:
+    """The deployed commit SHA, or None when not running on Render.
+
+    Allowed by rule 6 and by rule 6 alone: this reads RENDER_GIT_COMMIT and no other variable.
+    Render injects it at build time, so a /health response can be matched against the commit
+    that was supposed to be live - which is the check F11 did not have. Locally it is absent, and
+    None is reported as the true answer rather than being filled in with a guess.
+    """
+    return os.getenv("RENDER_GIT_COMMIT") or None
 
 # Uvicorn configures only its own loggers, so our records would propagate to a
 # root logger that defaults to WARNING and drop the ingest lines below.
@@ -188,6 +199,10 @@ def health():
     not answer. Without the first, a process serving 32 of 40 chunks answered "ok" and every
     refusal about the missing document looked legitimate (F6 in evals/FINDINGS.md).
 
+    build_commit, started_at and uptime_seconds identify WHICH build answered. Without them
+    a live check cannot tell a current deployment from a stale one that also returns 200,
+    which is exactly how F11 happened. Reporting the SHA is allowed by rule 6.
+
     memory_reachable closes the gap CLAUDE.md rule 4 names: memory_backend says what was
     configured, which is not a claim that anything answered. A wrong DATABASE_URL used to read
     "memory_backend": "postgres" with status "ok". Now SELECT 1 runs on every call, so the
@@ -200,6 +215,7 @@ def health():
     now = datetime.now(timezone.utc)
     return {
         "status": "degraded" if (failed or not reachable) else "ok",
+        "build_commit": build_commit(),
         "started_at": _STARTED_AT.isoformat(),
         "uptime_seconds": round((now - _STARTED_AT).total_seconds(), 1),
         "memory_backend": memory_backend(),

@@ -500,7 +500,11 @@ that no service existed at all.
 success. The check ran, returned 200, parsed cleanly, and would have passed any schema assertion.
 What it lacked was any statement of *which service answered*. The component did not identify
 itself, so the response could not be told apart from the right one — CLAUDE.md rule 4 at the
-infrastructure layer rather than inside the app. Worth noting that the fix is documentation, which
-is weaker than a check: a probe of the wrong host still returns 200 and still looks fine. The
-durable version would be a `/health` field naming the build (a commit SHA), so a response could be
-matched against the commit expected to be live. That is not built.
+infrastructure layer rather than inside the app. The first part of the fix was documentation, which is weaker
+than a check: a probe of the wrong host still returns 200 and still looks fine. The durable part is
+now built - `/health` reports `build_commit` (from `RENDER_GIT_COMMIT`), `started_at` and
+`uptime_seconds`, so a response can be matched against the commit that was supposed to be
+live, and a stale deployment identifies itself instead of answering `200` anonymously.
+Reporting the SHA required an explicit allowance in CLAUDE.md, added as rule 6, because
+rule 1 forbids printing environment variable values; the allowance names
+`RENDER_GIT_COMMIT` and nothing else.

@@ -46,6 +46,16 @@ These are absolute. They came from real incidents in this repo — the findings 
    restart (F9). The test is simple: if the degraded mode would pass a local demo and fail in
    production, the log must say so loudly enough that the demo is not mistaken for proof.
 
+6. **Build metadata is not a secret.** `/health` may report the commit SHA from
+   `RENDER_GIT_COMMIT`, the start time, and the uptime. This is an explicit allowance alongside
+   rule 1, not an exception to it — rule 1 still forbids printing any other environment variable
+   value.
+   *Scope, so this does not widen by precedent:* the allowance covers `RENDER_GIT_COMMIT` and
+   nothing else. `RENDER_SERVICE_NAME`, `RENDER_INSTANCE_ID` and every other platform variable
+   stay under rule 1 until listed here. Why this is worth allowing: without a build identifier, a
+   `/health` check cannot say *which* build answered it, which is how F11 passed a live check
+   against a stale deployment and concluded auto-deploy was broken.
+
 **The pattern these guard against.** Six times in this repo a failure has reported itself as a
 success — F2, F4, F6, F7, F9, and the dotenv line that absorbed a malformed config entry without
 error. Every one produced *well-formed* output that a schema check would pass. What each lacked
