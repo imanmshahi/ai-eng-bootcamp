@@ -146,3 +146,61 @@ class AnalyzeResponse(BaseModel):
     analyzer_source: str = "heuristic"
     headroom_note: str | None = None
     estimate: EstimateResponse
+
+
+class PingRequest(BaseModel):
+    item_text: str = Field(
+        ...,
+        min_length=1,
+        max_length=20_000,
+        description="The news item to screen. Treated as untrusted data, never as instructions.",
+        example="The European Commission confirmed a 6% SAF blend for 2030.",
+    )
+    source_urls: list[str] = Field(
+        default_factory=list,
+        description="Optional provenance. URLs found in item_text are added automatically.",
+    )
+
+
+class PingResponse(BaseModel):
+    """The screening verdict, plus what the memory store actually did with it.
+
+    persisted / skipped_reason / memory_reachable are here because of rule 4: the caller must be
+    able to tell a remembered verdict from one that was classified and dropped. A response that
+    reported only the classification would let a dead database look like a quiet news day.
+    """
+
+    ping: bool
+    instrument: str | None = None
+    jurisdiction: str | None = None
+    eu_channel: str | None = None
+    fuels: list[str] = Field(default_factory=list)
+    stage: str | None = None
+    what_happened: str = ""
+    why_it_matters: str = ""
+    citations: list[str] = Field(default_factory=list)
+    confidence: float = Field(0.0, ge=0.0, le=1.0)
+
+    whats_new_vs_before: str = Field(
+        ...,
+        description="What changed since this story was last seen, computed before this write.",
+    )
+    story_key: str | None = None
+    matched_by: str | None = Field(
+        None, description='How the story was recognised: "key", "embedding", or null for new.'
+    )
+    match_score: float | None = Field(
+        None, description="Cosine similarity when matched_by is 'embedding'."
+    )
+    ping_count: int = Field(0, description="Times this story has been stored, including this one.")
+
+    persisted: bool = Field(..., description="True only if the write gate passed AND the row was written.")
+    skipped_reason: str | None = Field(None, description="Why nothing was stored, when persisted is false.")
+    memory_reachable: bool = Field(..., description="Whether the store answered during this request.")
+    dropped_citations: list[str] = Field(
+        default_factory=list,
+        description="Chunk IDs the model cited that were not retrieved, and were therefore discarded.",
+    )
+
+    tokens_used: int = 0
+    cost_usd: float = 0.0

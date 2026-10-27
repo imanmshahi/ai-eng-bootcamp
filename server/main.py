@@ -10,7 +10,15 @@ from fastapi import FastAPI, HTTPException
 from server.analyze_service import run_analyze
 from server.estimate_service import run_estimate
 from server.openai_client import ask_openai
+from server.memory import (
+    backend as memory_backend,
+    init_store,
+    probe as memory_probe,
+    story_count,
+    warn_if_unconfigured,
+)
 from server.rag import ingest as run_ingest, search as run_search, store_chunk_count
+from server.watchbird_classify import screen as run_screen
 from server.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -20,6 +28,8 @@ from server.schemas import (
     EstimateResponse,
     IngestRequest,
     IngestResponse,
+    PingRequest,
+    PingResponse,
     SearchRequest,
     SearchResponse,
 )
@@ -110,6 +120,26 @@ def load_corpus() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    warn_if_unconfigured()   # loud if the memory store is not durable
+
+    # SELECT 1 before anything claims the store works. A wrong DATABASE_URL used to be
+    # invisible: /health read the configured backend and answered "ok". Probing at startup
+    # means the log and /health both report a measurement.
+    result = memory_probe()
+    if result["reachable"]:
+        logger.info(
+            "Memory store: %s - SELECT 1 answered. %d stories remembered.",
+            memory_backend(), story_count(),
+        )
+        init_store()
+    else:
+        logger.warning(
+            "Memory store: %s is NOT reachable (%s). /ping will still classify, but nothing "
+            "will be remembered and /health reports status=degraded. This is the difference "
+            "between 'configured for Postgres' and 'Postgres answers'.",
+            memory_backend(), result["error"],
+        )
+
     load_corpus()
     yield
 
@@ -129,21 +159,34 @@ def root():
         "ask": "POST /ask",
         "ingest": "POST /ingest",
         "search": "POST /search",
+        "ping": "POST /ping",
         "repo": "https://github.com/imanmshahi/ai-eng-bootcamp",
     }
 
 
 @app.get("/health")
 def health():
-    """Heartbeat plus corpus completeness. No OpenAI call — reads the startup result only.
+    """Heartbeat plus corpus completeness plus a live memory probe. No OpenAI call.
 
-    status is "degraded" when any corpus file failed to ingest. Without this, a process serving
-    32 of 40 chunks answered "ok" and every refusal about the missing document looked legitimate
-    (F6 in evals/FINDINGS.md).
+    status is "degraded" when any corpus file failed to ingest, or when the memory store does
+    not answer. Without the first, a process serving 32 of 40 chunks answered "ok" and every
+    refusal about the missing document looked legitimate (F6 in evals/FINDINGS.md).
+
+    memory_reachable closes the gap CLAUDE.md rule 4 names: memory_backend says what was
+    configured, which is not a claim that anything answered. A wrong DATABASE_URL used to read
+    "memory_backend": "postgres" with status "ok". Now SELECT 1 runs on every call, so the
+    endpoint reports what the component has rather than what it was told to be. stories_remembered
+    is -1 when the table cannot be read, which is a different failure from an empty store.
     """
     failed = _corpus_status["failed_documents"]
+    memory = memory_probe()
+    reachable = bool(memory["reachable"])
     return {
-        "status": "degraded" if failed else "ok",
+        "status": "degraded" if (failed or not reachable) else "ok",
+        "memory_backend": memory_backend(),
+        "memory_reachable": reachable,
+        **({"memory_error": memory["error"]} if memory["error"] else {}),
+        "stories_remembered": story_count() if reachable else -1,
         "documents_loaded": _corpus_status["documents_loaded"],
         "chunks_total": _corpus_status["chunks_total"],
         "expected_documents": _corpus_status["expected_documents"],
@@ -194,6 +237,30 @@ def search(body: SearchRequest):
         raise HTTPException(
             status_code=502,
             detail="Embedding call failed. Check your OpenAI key, billing, and network.",
+        ) from exc
+
+
+@app.post("/ping", response_model=PingResponse)
+def ping(body: PingRequest):
+    """Screen a news item: classify against the corpus, apply the write gate, remember or skip.
+
+    The response says what happened rather than what was attempted — persisted, skipped_reason
+    and memory_reachable are part of the contract, so a verdict that was classified and dropped
+    cannot be mistaken for one that was remembered.
+    """
+    try:
+        return run_screen(body.item_text, body.source_urls)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        error_name = type(exc).__name__
+        if error_name == "AuthenticationError":
+            raise HTTPException(status_code=401, detail="Invalid OpenAI API key.") from exc
+        if error_name == "RateLimitError":
+            raise HTTPException(status_code=402, detail="OpenAI account has no credits left.") from exc
+        raise HTTPException(
+            status_code=502,
+            detail="Classification failed. Check billing, network, and try again.",
         ) from exc
 
 

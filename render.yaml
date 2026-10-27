@@ -13,3 +13,31 @@ services:
         sync: false
       - key: PYTHON_VERSION
         value: "3.12.0"
+      # ── Watchbird memory store — ACTIVE ───────────────────────────────
+      # The store needs DATABASE_URL to reach the service, or server/memory.py
+      # falls back to SQLite on a container with no persistent disk: memory
+      # that passes a demo and loses everything on the next restart (F9).
+      #
+      # `sync: false` means the value is set in the Render dashboard and never
+      # enters this repo, which satisfies the same rule `fromDatabase` does.
+      #
+      # Why NOT `fromDatabase` here: a Postgres instance already exists and
+      # already holds the stories table. `fromDatabase` tells Render to create
+      # a NEW database named watchbird-db, which would (a) start empty, so the
+      # recall proof would have nothing to recall, and (b) need a second free
+      # instance, and Render allows one free Postgres per workspace.
+      #
+      # Set it in: Dashboard → the service → Environment → DATABASE_URL.
+      # Use the database's INTERNAL connection string when the service and the
+      # database are in the same region — it does not traverse the public
+      # internet and is not subject to egress. The external string also works.
+      #
+      # Free-plan expiry still applies to whichever database is used: a free
+      # Render Postgres expires 30 days after creation, has a 14-day grace
+      # period, and is then DELETED with all of its data. Move to a paid plan
+      # if the memory has to outlive that.
+      - key: DATABASE_URL
+        sync: false
+
+# No `databases:` block on purpose — see the note above. Adding one would have
+# Render provision a second Postgres rather than use the existing one.

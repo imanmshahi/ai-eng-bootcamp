@@ -245,3 +245,32 @@ def search(body: SearchRequest) -> SearchResponse:
     ]
 
     return SearchResponse(results=results, tokens_used=tokens_used, cost_usd=cost_usd)
+
+
+def embed_query(text: str) -> tuple[list[float], int, float]:
+    """Embed one string with the same model, key guard and daily spend accounting as search().
+
+    Used by the Watchbird memory store to compare a news item's what_happened against stored
+    stories. Returns (vector, tokens_used, cost_usd). A vector produced by a different model
+    would not be comparable with the stored ones, which is why this shares EMBEDDING_MODEL
+    rather than taking one as an argument.
+    """
+    global _spend_usd
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key or api_key.startswith("sk-your-key"):
+        raise ValueError("OPENAI_API_KEY is missing. Copy .env.example to .env and add your key.")
+
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return [], 0, 0.0
+
+    _reset_daily_if_needed()
+    client = OpenAI(api_key=api_key)
+    response = client.embeddings.create(model=EMBEDDING_MODEL, input=[cleaned])
+
+    tokens_used = response.usage.total_tokens
+    cost_usd = tokens_used * _EMBED_PER_M / 1_000_000
+    _spend_usd += cost_usd
+
+    return response.data[0].embedding, tokens_used, cost_usd

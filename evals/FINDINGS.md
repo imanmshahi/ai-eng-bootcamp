@@ -16,6 +16,8 @@ Per-question evidence for F1–F3 lives in `evals/golden_v0.jsonl` (before/after
 | F6 | Startup corpus ingest fails per-file while the API reports healthy | FIXED |
 | F7 | Check recall is wording-dependent — a reworded concession made a regression look like an improvement | FIXED |
 | F8 | Chunking fix narrowed q13 from a partial answer to a clean refusal | OPEN |
+| F9 | Memory store falls back to SQLite when DATABASE_URL is unset, with no warning | FIXED |
+| F10 | Fuel normalisation folds e-SAF onto SAF, merging two distinct policy levers into one story | OPEN |
 
 ---
 
@@ -324,3 +326,123 @@ a ranking consequence of chunk boundaries moving, not of the boundaries being wr
 that — instructing the model to answer every supported part — and produced no net change plus a new
 `refused=True`-with-citations contradiction. A breadth problem detected by one trace is not yet
 evidence for a prompt rewrite.
+
+## F9 — memory store falls back to SQLite when DATABASE_URL is unset, with no warning — FIXED
+
+`server/memory.py` resolved its connection URL as `os.getenv("DATABASE_URL") or
+"sqlite:///./watchbird.db"`. The fallback is deliberate — the API should run with nothing
+configured — but it was silent, and silence is the defect.
+
+**What that would have cost.** Watchbird's memory exists to answer *"what is new versus before"*,
+which requires a store that outlives a process. With `DATABASE_URL` unset, the store is a file in
+the container filesystem, and Render's free web service has no persistent disk: every restart,
+every redeploy, every wake from sleep begins with an empty database. The failure is invisible in
+exactly the way that matters most — `POST /ping` keeps returning *"First time this story has
+appeared."* forever, which is a well-formed, plausible answer. The planned local durability proof
+(write a story, kill the process, start fresh, show recall) would have **passed**, because SQLite
+on a laptop genuinely is durable. The same code on Render would lose every story and report
+nothing wrong.
+
+**Fifth instance of the 'fails as success' pattern** (see F2, F4, F6, F7):
+
+| | Failure | Reported as |
+| --- | --- | --- |
+| F2 | Model speculated, then appended the refusal sentence | `refused: false`, `confidence: 0.85`, `citations: []` |
+| F4 | `stage` drifted across three values for one unchanged input | A valid-looking string every time, no error |
+| F6 | One of three corpus documents never loaded | `{"status": "ok"}` |
+| F7 | A hedge the check was built to catch, reworded | `PASS`, and a regression scored as an improvement |
+| F9 | Memory store not durable; every ping is a first sighting | `"First time this story has appeared."` |
+
+Worth noticing what these five have in common beyond the slogan: each failure produced output that
+was *well-formed*. No exception, no empty field, no malformed value — a schema check would pass all
+five. What they lack is a statement of what the component actually has: F6 needed `/health` to
+report its chunk count, F9 needs it to report its backend. **Confidence is not a substitute for
+provenance**, and the fix in every case was to make the component declare its own state rather than
+to make it try harder.
+
+**Fix.** In `server/memory.py`:
+- `warn_if_unconfigured()` logs a `WARNING` naming the resolved SQLite path, saying plainly that it
+  is not durable on Render, and giving the two ways to configure it. It returns whether it fired,
+  so it is testable. When `DATABASE_URL` *is* set it logs an `INFO` line instead, so the backend
+  appears in the log either way.
+- `backend()` returns `"sqlite"` or `"postgres"`, normalising both the `postgresql://` and
+  `postgresql+psycopg://` forms.
+
+In `server/main.py`:
+- the lifespan calls `warn_if_unconfigured()` before `load_corpus()`, so the warning sits near the
+  top of the startup output rather than buried under ingest logs;
+- `GET /health` now returns `"memory_backend": "sqlite" | "postgres"`.
+
+**Verified.** Both branches tested: unset gives `warning fired: True` and `backend() == "sqlite"`;
+set gives `False` and `"postgres"`, for both URL schemes. Live restart logs the warning as the third
+line of startup, and `/health` returns:
+
+```json
+{"status": "ok", "memory_backend": "sqlite", "documents_loaded": 3,
+ "chunks_total": 48, "expected_documents": 3}
+```
+
+**Residual.** `/health` reports which backend is configured, not whether it is reachable — a wrong
+Postgres URL would still read `"memory_backend": "postgres"` until something tried to connect. A
+connectivity probe belongs with the store itself, which is not built yet. Note also that
+`memory_backend: "sqlite"` is correct and harmless locally; it is only a problem on Render, and
+nothing yet distinguishes the two environments automatically.
+
+## F10 — fuel normalisation folds e-SAF onto SAF, merging two policy levers — OPEN
+
+Fuel normalisation folds e-SAF onto SAF, so a story about the ReFuelEU synthetic sub-target
+shares a `story_key` with one about headline SAF shares. Under ReFuelEU these are distinct policy
+levers with different economics. Fix is a `sub_target` value in the `eu_channel` enum, deferred
+because it is a schema change.
+
+**Where.** `CANONICAL_FUELS` in `server/memory.py`. The first group maps `saf`,
+`sustainable aviation fuel`, `synthetic aviation fuel`, `e-SAF`, `RFNBO-derived jet`,
+`power-to-liquid jet` and `e-kerosene` all onto the single token `saf`, and `story_key()` is built
+from those canonical tokens.
+
+**Why the fold was introduced.** It fixed a worse problem. On 2026-10-27 the two-session recall
+test posted a draft-stage SAF item and then a later in-force one. The classifier returned
+`["SAF", "synthetic aviation fuel"]` for the first and `["SAF"]` for the second — the umbrella
+plus the sub-kind, then the umbrella alone. The two fuel sets differed, so the `story_key` differed,
+so the exact-key lookup missed. Recall survived only because the embedding fallback matched at
+**0.854663**, four thousandths above `SAME_STORY_COSINE = 0.85`, a threshold that is itself
+unvalidated. Cross-session memory was resting on a constant nobody has measured.
+
+Folding synonyms alone would not have fixed it: the miss was a difference of *granularity*, not of
+naming. `{saf, e-saf}` and `{saf}` are still two different sets. Only folding the sub-kinds onto
+the umbrella makes the two items key identically, which it now does — the same re-run matches on
+`matched_by: "key"` with `match_score: 1.0`.
+
+**What it costs.** Identity can no longer distinguish the two instruments ReFuelEU actually
+creates. Article 4(1) sets a minimum SAF share *and*, separately, a minimum synthetic aviation fuel
+sub-share, with its own averaging periods over 2030–2031 and 2032–2034. Those are different
+obligations with different compliance economics and different supply constraints, and a watch tool
+exists partly to tell them apart. After the fold:
+
+- an item about the synthetic sub-target and an item about headline SAF shares land on one row;
+- `latest_stage` and `stages_seen` describe whichever arrived last, so a sub-target moving from
+  `proposed` to `in_force` is indistinguishable from the headline share doing so;
+- `whats_new_vs_before` can therefore report a stage move on the wrong lever.
+
+The raw classifier words are still stored in the `fuels` column, so the distinction is *readable*
+in the row. It is not *separable*: nothing keys on it, nothing queries it, and no stage history is
+kept per lever.
+
+**Fix, deferred.** Add `sub_target` to `EU_CHANNELS` and have the classifier choose it when the
+item is about a sub-share rather than a headline share. That splits the two back into separate
+stories without reintroducing the granularity problem, because the split then lives in the channel
+rather than in the fuel set. Deferred because it is a schema change: `EU_CHANNELS` is a closed list
+that `story_key()` is built from, so adding a value re-keys existing rows and needs a one-off
+migration, and the classifier prompt needs a rule for choosing between `mandate` and `sub_target`
+that is itself worth testing.
+
+**Not the same as F5.** F5 is about `stage` — the pipeline position a news item has reached. F10 is
+about *which obligation* the item concerns. Both are cases of a closed list being too coarse for
+the domain, and both would be caught by the same kind of labelled set: pairs of items that should
+and should not share a story.
+
+**How this one announces itself.** Unlike F2/F4/F6/F7/F9, this finding is not a failure reporting
+itself as a success — it is a deliberate trade made with its cost written down. The thing that
+would make it dangerous is silence: a merged story looks exactly like a correctly recalled one in
+the response, the row and the log. That is why the fold is commented at `CANONICAL_FUELS` and
+recorded here, rather than left to be rediscovered from a confusing `whats_new_vs_before`.
