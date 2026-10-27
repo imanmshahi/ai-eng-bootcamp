@@ -1,6 +1,15 @@
 # Deploy API to Render
 
-What **deploy** means: your FastAPI app runs on Render's computers 24/7 at a public URL like `https://ai-eng-bootcamp-api.onrender.com`. Anyone (you, cohort, curl) can call `/health`, `/ask`, `/estimate` without your laptop on.
+> **The live service is https://ai-eng-bootcamp-v4if.onrender.com — check that host only.**
+>
+> Two other hosts answer `200` on `/health` and are NOT this project:
+> `ai-eng-bootcamp-api.onrender.com` (old, abandoned Week-1 build: only `/ask` and `/health`)
+> and `ai-eng-bootcamp.onrender.com` (an unrelated app). Because both reply successfully, a
+> check against either reads as a healthy check of a stale deployment rather than as a mistake.
+> This document previously used the `-api` host as its example URL, which is how the mix-up
+> propagated. See F11 in `evals/FINDINGS.md`.
+
+What **deploy** means: your FastAPI app runs on Render's computers 24/7 at a public URL — here `https://ai-eng-bootcamp-v4if.onrender.com`. Anyone (you, cohort, curl) can call `/health`, `/ask`, `/estimate` without your laptop on.
 
 **What stays local:** Streamlit UI (`./start.sh`) unless you later use Streamlit Cloud.
 
@@ -10,7 +19,7 @@ What **deploy** means: your FastAPI app runs on Render's computers 24/7 at a pub
 
 | Before (local) | After (Render) |
 |----------------|----------------|
-| `http://127.0.0.1:8000/ask` | `https://YOUR-SERVICE.onrender.com/ask` |
+| `http://127.0.0.1:8000/ask` | `https://ai-eng-bootcamp-v4if.onrender.com/ask` |
 | Laptop must be on | API runs in the cloud |
 | `.env` on your machine | `OPENAI_API_KEY` in Render dashboard |
 
@@ -32,7 +41,9 @@ https://render.com — sign up with GitHub.
 
 1. Render Dashboard → **New** → **Blueprint**
 2. Connect **CTATX/ai-eng-bootcamp**
-3. Render reads `render.yaml` and creates `ai-eng-bootcamp-api`
+3. Render reads `render.yaml` and creates the service named in it. Confirm the name
+   matches the EXISTING live service first — a mismatch creates a second service
+   instead of updating the live one.
 
 **Option B — Manual Web Service:**
 
@@ -56,27 +67,27 @@ Never commit this. Render injects it at runtime (same idea as local `.env`).
 Render builds the Docker image and starts uvicorn. When green:
 
 ```bash
-curl https://YOUR-SERVICE.onrender.com/health
-curl -X POST https://YOUR-SERVICE.onrender.com/ask \
+curl https://ai-eng-bootcamp-v4if.onrender.com/health
+curl -X POST https://ai-eng-bootcamp-v4if.onrender.com/ask \
   -H "Content-Type: application/json" \
   -d '{"question":"What is an API?"}'
 ```
 
-Interactive docs: `https://YOUR-SERVICE.onrender.com/docs`
+Interactive docs: `https://ai-eng-bootcamp-v4if.onrender.com/docs`
 
 ---
 
 ## Use local Streamlit against cloud API
 
 ```bash
-export API_BASE=https://YOUR-SERVICE.onrender.com
+export API_BASE=https://ai-eng-bootcamp-v4if.onrender.com
 ./start.sh
 ```
 
 Or only Streamlit (no local uvicorn):
 
 ```bash
-export API_BASE=https://YOUR-SERVICE.onrender.com
+export API_BASE=https://ai-eng-bootcamp-v4if.onrender.com
 streamlit run app.py
 ```
 
@@ -87,7 +98,7 @@ streamlit run app.py
 On https://github.com/CTATX/badlabz or your domain, add a page:
 
 ```html
-<a href="https://YOUR-SERVICE.onrender.com/docs">Bootcamp API demo</a>
+<a href="https://ai-eng-bootcamp-v4if.onrender.com/docs">Bootcamp API demo</a>
 ```
 
 GitHub Pages hosts the **link**; Render hosts the **API**.

@@ -3,6 +3,7 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -35,6 +36,21 @@ from server.schemas import (
 )
 
 logger = logging.getLogger("bootcamp")
+
+# When this process started. Set at import, so it is the process's own clock rather than
+# anything the platform reports.
+#
+# Why /health needs it: a restart that changes no code returns a byte-identical /health body, so
+# "the container restarted" is otherwise an assertion with nothing behind it. started_at makes it
+# a reading — a new container has a new value and uptime_seconds near zero, while
+# stories_remembered carries over, which is the whole claim the Postgres store exists to support.
+#
+# This is a partial fix for the durable gap named in F11: identifying *which process answered*.
+# The complete version is a build identifier, and Render injects one as RENDER_GIT_COMMIT, but
+# reporting it would mean printing an environment variable value, which CLAUDE.md rule 1 forbids
+# without exception. That rule is about secrets and a commit SHA is not one, so the carve-out may
+# be worth making - but it is a change to an absolute rule, and that is Iman's call, not mine.
+_STARTED_AT = datetime.now(timezone.utc)
 
 # Uvicorn configures only its own loggers, so our records would propagate to a
 # root logger that defaults to WARNING and drop the ingest lines below.
@@ -181,8 +197,11 @@ def health():
     failed = _corpus_status["failed_documents"]
     memory = memory_probe()
     reachable = bool(memory["reachable"])
+    now = datetime.now(timezone.utc)
     return {
         "status": "degraded" if (failed or not reachable) else "ok",
+        "started_at": _STARTED_AT.isoformat(),
+        "uptime_seconds": round((now - _STARTED_AT).total_seconds(), 1),
         "memory_backend": memory_backend(),
         "memory_reachable": reachable,
         **({"memory_error": memory["error"]} if memory["error"] else {}),

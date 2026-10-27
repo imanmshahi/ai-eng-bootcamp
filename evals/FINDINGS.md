@@ -18,6 +18,7 @@ Per-question evidence for F1–F3 lives in `evals/golden_v0.jsonl` (before/after
 | F8 | Chunking fix narrowed q13 from a partial answer to a clean refusal | OPEN |
 | F9 | Memory store falls back to SQLite when DATABASE_URL is unset, with no warning | FIXED |
 | F10 | Fuel normalisation folds e-SAF onto SAF, merging two distinct policy levers into one story | OPEN |
+| F11 | `render.yaml` named a service that does not exist; live checks ran against an unrelated old deployment | FIXED |
 
 ---
 
@@ -446,3 +447,60 @@ itself as a success — it is a deliberate trade made with its cost written down
 would make it dangerous is silence: a merged story looks exactly like a correctly recalled one in
 the response, the row and the log. That is why the fold is commented at `CANONICAL_FUELS` and
 recorded here, rather than left to be rediscovered from a confusing `whats_new_vs_before`.
+
+## F11 — render.yaml named a service that does not exist — FIXED
+
+`render.yaml` names a service that does not exist; live checks have twice been run against an
+unrelated old deployment, once concluding auto-deploy was broken. **FIXED:** `render.yaml` now
+names the live service.
+
+**The live service is `https://ai-eng-bootcamp-v4if.onrender.com`.** `render.yaml` named
+`ai-eng-bootcamp-api`, and `docs/deploy-render.md` used that same name as its example URL in the
+opening line and told the reader the Blueprint "creates `ai-eng-bootcamp-api`". Nothing in the
+repo recorded the real hostname — it had never appeared in any tracked file or in any commit in
+the repo's history.
+
+**Why it survived two checks.** Both wrong hosts are real, live, and answer `200`:
+
+| Host | What it actually is | `/health` |
+| --- | --- | --- |
+| `ai-eng-bootcamp-v4if.onrender.com` | **this project** | full payload, `/ping` present |
+| `ai-eng-bootcamp-api.onrender.com` | abandoned Week-1 build | `{"status": "ok"}` |
+| `ai-eng-bootcamp.onrender.com` | an unrelated app | `{"status": "healthy", "timestamp": …}` |
+
+A check against the `-api` host returns `{"status": "ok"}` — a 200, a well-formed body, and the
+same `status` key the real endpoint uses. Nothing about it says "wrong service". It reads as a
+successful check of a healthy deployment.
+
+**The wrong conclusion it produced.** On 2026-10-27 the `-api` host was probed after a push. Its
+OpenAI route table held only `/ask` and `/health` — no `/estimate`, `/ingest` or `/search`, all
+committed days earlier. The inference drawn was that auto-deploy had been off for days and that
+the push had not triggered a build, and the deploy was reported as blocked pending dashboard
+action. **All of that was wrong.** Auto-deploy works: commit `6a21a4f` was live on the real host
+within minutes, with `DATABASE_URL` already set and `memory_reachable: true`. The route table was
+old because the *service* was old, not because the deploy had failed.
+
+A second, smaller error came from the same probe: a transient network failure returned `000`, and
+`*.onrender.com` is wildcard DNS, so a DNS lookup "resolves" for any name and cannot distinguish a
+real service from an imaginary one. Together those nearly produced the opposite false conclusion —
+that no service existed at all.
+
+**Fix.**
+- `render.yaml` carries the live URL in a header block, names the two hosts that are *not* this
+  project, and states that both answer 200 so a check against them looks healthy.
+- `name:` now matches the live hostname, with the caveat recorded inline: Render appends a random
+  suffix to the URL when a service name is taken, and `ai-eng-bootcamp` is taken, so the dashboard
+  name may be `ai-eng-bootcamp` with `-v4if` added only to the host. The exact name must be
+  confirmed in the dashboard before any Blueprint sync, because a name that matches no existing
+  service makes Render create a second one instead of updating this one.
+- `docs/deploy-render.md` leads with the live URL and the two decoys, and its `YOUR-SERVICE`
+  placeholders are replaced with the real host.
+
+**Same pattern as F2, F4, F6, F7, F9 — the seventh instance.** A failure that reports itself as a
+success. The check ran, returned 200, parsed cleanly, and would have passed any schema assertion.
+What it lacked was any statement of *which service answered*. The component did not identify
+itself, so the response could not be told apart from the right one — CLAUDE.md rule 4 at the
+infrastructure layer rather than inside the app. Worth noting that the fix is documentation, which
+is weaker than a check: a probe of the wrong host still returns 200 and still looks fine. The
+durable version would be a `/health` field naming the build (a commit SHA), so a response could be
+matched against the commit expected to be live. That is not built.

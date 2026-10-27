@@ -1,8 +1,34 @@
 # Render Blueprint — deploy the API only (FastAPI).
 # Streamlit stays local or on Streamlit Cloud; point it at this URL.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# THE LIVE SERVICE IS:   https://ai-eng-bootcamp-v4if.onrender.com
+#
+# Check that host and no other. Verified 2026-10-27: /health returns
+# memory_backend "postgres" with memory_reachable true, and the route table
+# includes /ping.
+#
+# NOT ours — do not probe, do not "fix":
+#   https://ai-eng-bootcamp-api.onrender.com   old, abandoned Week-1 build;
+#                                              serves only /ask and /health
+#   https://ai-eng-bootcamp.onrender.com       someone else's app entirely
+#
+# Both of those answer 200 on /health, so a live check against either one
+# looks like a successful check of a stale deployment. That has now happened
+# twice and once produced the wrong conclusion that auto-deploy was broken —
+# F11 in evals/FINDINGS.md. Auto-deploy works: 6a21a4f was live within
+# minutes of the push.
+# ─────────────────────────────────────────────────────────────────────────────
 services:
   - type: web
-    name: ai-eng-bootcamp-api
+    # Matches the live hostname above. UNVERIFIED against the dashboard: Render
+    # appends a random suffix to the URL when a service name is already taken,
+    # and `ai-eng-bootcamp` is taken, so the dashboard name may be
+    # `ai-eng-bootcamp` with `-v4if` added only to the host. Confirm the exact
+    # name in Dashboard → the service → Settings BEFORE any Blueprint sync: a
+    # name that does not match an existing service makes Render create a second
+    # one rather than update this one.
+    name: ai-eng-bootcamp-v4if
     runtime: docker
     plan: free
     region: oregon
