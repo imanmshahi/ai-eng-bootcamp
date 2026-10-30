@@ -1,0 +1,12 @@
+# Dependencies for the standalone Watchbird Memory app on Streamlit Community Cloud.
+#
+# Beside the entry point on purpose. Community Cloud searches the entry point's directory before
+# the repository root and uses the first dependency file it finds, so this file - not the root
+# requirements.txt - is what the deployed app installs.
+#
+# That matters: the root file also lists fastapi, uvicorn, openai, python-dotenv and tiktoken,
+# which are what the API server needs. The UI speaks HTTP to a public API and needs none of them.
+# Installing them here would mean a slower build and a public app carrying an OpenAI SDK it never
+# calls.
+streamlit>=1.41.0
+requests>=2.31.0

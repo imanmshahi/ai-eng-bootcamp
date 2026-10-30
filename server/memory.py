@@ -495,7 +495,9 @@ def gate_reason(verdict: Mapping[str, Any]) -> str | None:
     except (TypeError, ValueError):
         return f"confidence {raw_confidence!r} is not a number"
     if confidence < GATE_MIN_CONFIDENCE:
-        return f"confidence {confidence:.2f} is below {GATE_MIN_CONFIDENCE}"
+        # :g not :.2f - rounding to 2dp turned 0.5999 into the self-contradicting
+        # "confidence 0.60 is below 0.6", a rejection message that argues against itself.
+        return f"confidence {confidence:g} is below {GATE_MIN_CONFIDENCE}"
 
     stage = verdict.get("stage")
     if stage not in STAGES:

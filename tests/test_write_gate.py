@@ -277,3 +277,15 @@ def test_renaming_a_fuel_is_not_reported_as_an_addition():
 def test_a_genuinely_new_fuel_is_still_reported_in_the_classifiers_words():
     text = whats_new_vs_before(previous_row(fuels=["SAF"]), verdict(fuels=["SAF", "HVO"]))
     assert "HVO" in text
+
+
+def test_the_confidence_rejection_message_does_not_contradict_itself():
+    """A value just below the threshold must not be printed as the threshold.
+
+    `:.2f` rendered 0.5999 as "confidence 0.60 is below 0.6" - a rejection whose own text says
+    the value met the bar it was rejected for. The gate was right; only the message lied.
+    """
+    reason = gate_reason(verdict(confidence=0.5999))
+    assert reason is not None
+    assert "0.60 is below 0.6" not in reason
+    assert "0.5999" in reason
