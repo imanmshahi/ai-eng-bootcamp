@@ -19,7 +19,8 @@ Per-question evidence for F1–F3 lives in `evals/golden_v0.jsonl` (before/after
 | F9 | Memory store falls back to SQLite when DATABASE_URL is unset, with no warning | FIXED |
 | F10 | Fuel normalisation folds e-SAF onto SAF, merging two distinct policy levers into one story | OPEN |
 | F11 | `render.yaml` named a service that does not exist; live checks ran against an unrelated old deployment | FIXED |
-| F12 | The page named the API's build but not its own; a UI deploy sat 38 minutes behind main while looking correct | FIXED |
+| F12 | `stages_seen` recorded a backwards stage move; `whats_new_vs_before` reports any change without checking direction | OPEN |
+| F13 | The page named the API's build but not its own; a UI deploy sat 38 minutes behind main while looking correct | FIXED |
 
 ---
 
@@ -510,7 +511,68 @@ Reporting the SHA required an explicit allowance in CLAUDE.md, added as rule 6, 
 rule 1 forbids printing environment variable values; the allowance names
 `RENDER_GIT_COMMIT` and nothing else.
 
-## F12 — the page named the API's build but not its own — FIXED
+## F12 — backwards stage transition recorded and reported as a move — OPEN
+
+The SAF story carried `stages_seen: ['proposed', 'in_force', 'proposed']` with `ping_count: 4`.
+`in_force → proposed` is not a move the policy pipeline makes: an act that is adopted and
+applying does not become a draft again. The store recorded it, the gate accepted it, and
+`whats_new_vs_before` announced it as an ordinary stage change.
+
+**Reproduced.**
+
+```
+backwards in_force -> proposed : Moved from in_force to proposed since 2026-10-30.
+gate verdict on that write     : ACCEPTED (stored)
+```
+
+**Where.** Two places, neither of which looks at direction:
+
+* `whats_new_vs_before()` in `server/memory.py` compares `new_stage != old_stage` and nothing
+  else, so every difference becomes `"Moved from X to Y"`.
+* `gate_reason()` validates that `stage` is one of the six values (F4) but not that the move
+  from the stored `latest_stage` is possible, so the row is written.
+
+**Why this is not simply an ordering check.** The obvious fix — reject any move that runs
+backwards along `proposed → provisional → definitive → in_force → amended → expired` — would be
+wrong, because a new amendment *proposed* for an instrument that is already *in force* is a real
+and common event. ReFuelEU Aviation being in force does not stop the Commission tabling a draft
+amendment to it. Under the current identity scheme that draft lands on the **same** `story_key`,
+because the key is built from instrument + jurisdiction + fuels + channel and says nothing about
+*which act* is at which stage. So `in_force → proposed` is ambiguous: it is either corrupt
+history, or a legitimate new proposal against a live instrument, and the row cannot tell you
+which.
+
+**What actually produced the observed instance.** The earlier draft-amendment sample was re-run
+after the in-force one, so the third `proposed` was replayed old news, not a new proposal. That
+is the sharper version of the problem: the store cannot distinguish *"this story moved
+backwards"* from *"an item we already processed was submitted again"* from *"a new proposal
+exists for an instrument already in force"*. All three write the same row.
+
+**Consequence.** `whats_new_vs_before` is the product, and here it states something false with
+the same confidence as everything else it says. A reader is told a regulation moved from in force
+back to proposed. Worse, the two legitimate readings are both more interesting than the one
+reported, and both are lost.
+
+**Candidate fixes, none chosen.**
+
+* Record the transition and flag it rather than narrate it: `"in_force → proposed, which is not a
+  forward move — this is either a new proposal against a live instrument or a repeat of an item
+  already seen"`. Honest, no schema change, and does not pretend to know which.
+* Give the story identity an act-level component so a draft amendment is a different story from
+  the act it amends. That fixes the ambiguity at the root and is a schema change, like F10.
+* De-duplicate replays by hashing the item text, so a resubmitted item updates `last_seen`
+  without appending a stage. Cheap, and removes one of the three cases outright.
+
+**Shares a root with F10.** Both are the story key being coarser than the domain: F10 merges two
+policy levers onto one row, F12 merges an act and its amendment onto one row. A key built from
+instrument + jurisdiction + fuels + channel cannot express *which act* or *which obligation*,
+and both findings are that gap showing up in different places.
+
+## F13 — the page named the API's build but not its own — FIXED
+
+> Numbering note: this was written and committed as **F12** in `3ad9aa4`, before F12 was assigned
+> to the backwards stage transition. The commit message in git history still says F12; the finding
+> is F13. The code carries no F-number for it, so nothing else needed changing.
 
 The Watchbird page reported `build_commit` from `/health` and nothing identifying which **UI**
 build was drawing it. On 2026-10-31 the Streamlit Community Cloud deploy sat 38 minutes behind
