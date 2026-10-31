@@ -19,6 +19,7 @@ Per-question evidence for F1–F3 lives in `evals/golden_v0.jsonl` (before/after
 | F9 | Memory store falls back to SQLite when DATABASE_URL is unset, with no warning | FIXED |
 | F10 | Fuel normalisation folds e-SAF onto SAF, merging two distinct policy levers into one story | OPEN |
 | F11 | `render.yaml` named a service that does not exist; live checks ran against an unrelated old deployment | FIXED |
+| F12 | The page named the API's build but not its own; a UI deploy sat 38 minutes behind main while looking correct | FIXED |
 
 ---
 
@@ -508,3 +509,51 @@ live, and a stale deployment identifies itself instead of answering `200` anonym
 Reporting the SHA required an explicit allowance in CLAUDE.md, added as rule 6, because
 rule 1 forbids printing environment variable values; the allowance names
 `RENDER_GIT_COMMIT` and nothing else.
+
+## F12 — the page named the API's build but not its own — FIXED
+
+The Watchbird page reported `build_commit` from `/health` and nothing identifying which **UI**
+build was drawing it. On 2026-10-31 the Streamlit Community Cloud deploy sat 38 minutes behind
+`main` — commit `774609d` added a second tab and the public app kept serving `4a4d91a` — and
+nothing on the page could have revealed it.
+
+**Why it went unnoticed.** The page looked entirely correct. The theme, the cold-start note and
+the service pill were all the current ones, because they shipped in the commit that *had*
+deployed. The only visible difference was a tab that was not there, which you can only notice if
+you already know to look for it. The `build 4a4d91a` caption actively made this worse: it is the
+**API's** commit, read from `/health`, and it was easy to read as confirmation that the page
+itself was current. It was not — it says which API answered, not which UI asked.
+
+**Same shape as F11, one layer up.** F11 was a live check against a stale *service* that answered
+`200`; this is a stale *page* that renders perfectly. In both the component could not state what
+it was, so a correct-looking response could not be told apart from the right one.
+
+**Fix.** `watchbird_memory_ui.ui_build()` returns a short SHA-256 of the module's own source, and
+the service pill now reads `live service <url> · ui <fingerprint>` on every tab. The existing
+caption was relabelled from `build` to `api build`, because two unlabelled hashes on one page is
+how the wrong one gets read.
+
+Two decisions inside that fix:
+
+* **A content hash, not a version constant.** A constant has to be remembered on every change,
+  and a forgotten bump produces a page stating the wrong build confidently — the failure this
+  finding is about, reintroduced. The file's own bytes cannot be forgotten.
+* **Newlines normalised before hashing.** Git checks this file out CRLF on Windows and LF in
+  Cloud's Linux container, so hashing raw bytes reports two different builds for identical
+  source. Measured: the normalised fingerprint is `7fe5203` from either checkout, while the
+  raw-byte hash differs (`80dfe9e`). That is the line-ending noise CLAUDE.md warns about,
+  arriving as a false alarm instead of a missed one.
+
+**How to use it.** Hash the committed file and compare with what the page shows:
+
+```bash
+python -c "import hashlib,pathlib; t=pathlib.Path('watchbird_memory_ui.py').read_text(encoding='utf-8'); print(hashlib.sha256(t.replace(chr(13)+chr(10),chr(10)).encode()).hexdigest()[:7])"
+```
+
+Equal means the deployed UI is exactly that source. Different means it is not, whatever else the
+page looks like.
+
+**Residual.** The fingerprint identifies the UI module only. A change to
+`streamlit_cloud/watchbird_app.py`, to `.streamlit/config.toml` or to the dependency file does
+not move it, so those can still drift unnoticed. Hashing the set of files the app is built from
+would close that; it is not built.

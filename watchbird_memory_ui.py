@@ -23,8 +23,10 @@ the previous run's sidebar on screen while the new one was still arriving - so "
 sidebar is emitted.
 """
 
+import hashlib
 import html
 import os
+from pathlib import Path
 
 import requests
 import streamlit as st
@@ -242,6 +244,36 @@ textarea { font-size: 0.95rem !important; }
 """
 
 
+def ui_build() -> str:
+    """A short fingerprint of THIS file's own source. Which UI build is serving.
+
+    The page already shows the API's commit, taken from /health, and that says nothing about
+    which *UI* is drawing it. On 2026-10-31 the Streamlit deploy sat 38 minutes behind main
+    while the page looked entirely correct, and nothing on it could have revealed that: the
+    only clue was a missing tab, which you had to know to look for. Same gap as F11, one layer
+    up — a component that cannot say what it is.
+
+    Why a content hash rather than a version string: a constant has to be remembered, and a
+    forgotten bump is a page that states the wrong build confidently. The file's own bytes
+    cannot be forgotten. Why not the git SHA: Streamlit Community Cloud does not inject one,
+    and .git may not survive into the container, so it would read "unknown" exactly where it
+    is needed.
+
+    Newlines are normalised first. Git checks this file out CRLF on Windows and LF on Cloud's
+    Linux container, so hashing raw bytes would report two different builds for identical
+    source — the line-ending noise CLAUDE.md warns about, showing up as a false alarm.
+    """
+    try:
+        text = Path(__file__).read_text(encoding="utf-8")
+    except OSError:
+        return "unknown"
+    normalised = text.replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(normalised.encode("utf-8")).hexdigest()[:7]
+
+
+UI_BUILD = ui_build()
+
+
 def fetch_health() -> dict | None:
     """GET /health, or None when the service cannot be reached at all."""
     try:
@@ -321,7 +353,8 @@ def render() -> None:
     # Which host produced these numbers. Three onrender.com hosts answer 200 on /health and only
     # one is this project (F11), so a screenshot has to name it.
     st.markdown(
-        f'<div class="wb-host">live service &nbsp;<b>{html.escape(API_BASE)}</b></div>',
+        f'<div class="wb-host">live service &nbsp;<b>{html.escape(API_BASE)}</b>'
+        f'&nbsp; · &nbsp;ui <b>{UI_BUILD}</b></div>',
         unsafe_allow_html=True,
     )
 
@@ -374,8 +407,13 @@ def _store_panel(health: dict | None) -> None:
             # build_commit is what makes a screenshot verifiable: it says which commit produced
             # these numbers, so a stale deployment cannot pass as the current one (CLAUDE.md
             # rule 6, F11). None means the service is not running on Render.
+            # "api build", not "build": the pill carries the UI's own fingerprint, and two
+            # unlabelled hashes on one page is how you end up reading the wrong one.
             commit = health.get("build_commit")
-            build = f"build `{commit[:7]}`" if commit else "build unknown (not running on Render)"
+            build = (
+                f"api build `{commit[:7]}`" if commit
+                else "api build unknown (not running on Render)"
+            )
             st.caption(
                 f"{build} · this process started at {health['started_at']}. Stories outlive it: "
                 "the count above is read from Postgres, not from process memory."
