@@ -1,6 +1,26 @@
+# Deliberate dark palette for the Watchbird apps.
+#
+# One accent, and it is spent on one thing: primaryColor drives the primary button, which is the
+# Run action. Nothing else in the UI uses it, so the eye goes to the only control that costs money
+# to press. Status colours (the green of a stage move, the amber of a gate rejection) come from
+# Streamlit's own semantic set and are deliberately NOT the accent - if everything is highlighted,
+# nothing is.
+#
+# The surfaces are two steps apart rather than three: a near-black page, one raised surface for
+# cards, sidebar and code blocks. Body text is off-white, not #FFFFFF, because pure white on
+# near-black is harsh to read at paragraph length.
+
 [theme]
 base = "dark"
-primaryColor = "#E8A317"
-backgroundColor = "#1B1F24"
-secondaryBackgroundColor = "#2A3038"
-textColor = "#F4F1EA"
+
+# Action blue. Used for the Run button and focus rings, nothing else.
+primaryColor = "#4C8DFF"
+
+# Page. Near-black with a trace of blue so it reads as deliberate rather than switched off.
+backgroundColor = "#0E1117"
+
+# The one raised surface: metric cards, sidebar, code blocks, inputs.
+secondaryBackgroundColor = "#171B23"
+
+# Off-white body text, ~15:1 against the page.
+textColor = "#E4E9F0"

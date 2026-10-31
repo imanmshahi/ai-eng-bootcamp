@@ -15,8 +15,15 @@ WATCHBIRD_API_BASE.
 This screen deliberately shows the memory *outcome* next to the verdict. A Ping on its own
 cannot be told apart from one that was classified and silently dropped, so persisted,
 skipped_reason and memory_reachable are on screen rather than buried in the raw JSON.
+
+Layout note: the sidebar is drawn FIRST, before any network call. It used to be drawn after the
+/health request, and because that request can block for ~50s on a Render cold start, a rerun left
+the previous run's sidebar on screen while the new one was still arriving - so "How it works" and
+"The write gate" appeared several times over. Nothing about the requests changed; only when the
+sidebar is emitted.
 """
 
+import html
 import os
 
 import requests
@@ -59,6 +66,144 @@ SAMPLE_ITEMS = {
     ),
 }
 
+# One CSS block, injected once at the top of render(). Selectors are data-testid attributes
+# wherever possible, because Streamlit's generated class names change between releases while the
+# test ids are part of its public surface.
+STYLE = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --wb-surface: #171B23;
+  --wb-surface-2: #1D222C;
+  --wb-border: rgba(255, 255, 255, 0.09);
+  --wb-muted: #98A2B3;
+  --wb-accent: #4C8DFF;
+  --wb-moved: #3FB950;
+  --wb-first: #58A6FF;
+  --wb-alert: #F0883E;
+}
+
+html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"] {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04';
+}
+
+/* Measure: ~900px keeps a line of body text near 80 characters. */
+.block-container, [data-testid="stMainBlockContainer"] {
+  max-width: 900px;
+  padding-top: 2.4rem;
+  padding-bottom: 5rem;
+}
+
+/* Vertical rhythm: Streamlit's default gap between every element is generous enough to make a
+   dense readout look unrelated to itself. */
+[data-testid="stVerticalBlock"] { gap: 0.7rem; }
+hr { margin: 1.75rem 0; border-color: var(--wb-border); }
+
+/* Streamlit sets heading sizes with a more specific rule than a bare `h1`/`h2`, so these carry
+   !important. Without it the section labels came out at display size and the page read as a
+   stack of competing titles with no hierarchy. */
+[data-testid="stMarkdownContainer"] h1, .stMarkdown h1 {
+  font-size: 2.0rem !important; font-weight: 700; letter-spacing: -0.025em;
+  margin: 0 0 0.2rem 0 !important; line-height: 1.15;
+  padding: 0 !important;
+}
+[data-testid="stMarkdownContainer"] h2, .stMarkdown h2 {
+  font-size: 0.76rem !important; font-weight: 600 !important; letter-spacing: 0.11em !important;
+  text-transform: uppercase; color: var(--wb-muted) !important;
+  margin: 1.9rem 0 0.75rem 0 !important; padding: 0 !important;
+}
+[data-testid="stMarkdownContainer"] h3, .stMarkdown h3 {
+  font-size: 1.05rem !important; font-weight: 600; letter-spacing: -0.01em;
+  margin: 0.5rem 0 0.2rem 0 !important; padding: 0 !important;
+}
+/* The sidebar's own headers are the same label style, one step quieter. */
+[data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+  font-size: 0.72rem !important; letter-spacing: 0.11em !important;
+  text-transform: uppercase; color: var(--wb-muted) !important;
+}
+/* Streamlit renders a hover anchor link beside every heading; it adds stray width. */
+[data-testid="stHeaderActionElements"] { display: none; }
+
+/* Metric cards: bordered surfaces rather than numbers floating on the page. */
+[data-testid="stMetric"] {
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem 0.95rem 1rem;
+}
+[data-testid="stMetricLabel"] p {
+  font-size: 0.7rem !important; font-weight: 500;
+  letter-spacing: 0.07em; text-transform: uppercase; color: var(--wb-muted);
+}
+[data-testid="stMetricValue"] {
+  font-size: 1.4rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.3;
+}
+
+/* The anchor: what changed since last time. This is the product, so it gets the most space,
+   the largest type on the page after the title, and a status bar down its left edge. */
+.wb-anchor {
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-left: 4px solid var(--wb-first);
+  border-radius: 14px;
+  padding: 1.5rem 1.7rem 1.6rem 1.7rem;
+  margin: 0.2rem 0 1.1rem 0;
+}
+.wb-anchor.moved   { border-left-color: var(--wb-moved); }
+.wb-anchor.first   { border-left-color: var(--wb-first); }
+.wb-anchor.unknown { border-left-color: var(--wb-alert); }
+.wb-anchor .wb-label {
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--wb-muted); margin-bottom: 0.5rem;
+}
+.wb-anchor .wb-say {
+  font-size: 1.45rem; font-weight: 600; letter-spacing: -0.02em;
+  line-height: 1.35; color: #F2F5F9;
+}
+
+/* The service URL, as a quiet pill rather than a full-width code block. A screenshot has to
+   show which host produced the numbers (F11), but it is provenance, not the headline. */
+.wb-host {
+  display: inline-block;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.78rem; color: var(--wb-muted);
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-radius: 999px;
+  padding: 0.28rem 0.8rem;
+  margin-bottom: 0.1rem;
+}
+.wb-host b { color: #CBD5E1; font-weight: 600; }
+
+.wb-sub { color: var(--wb-muted); font-size: 0.93rem; margin: 0.15rem 0 0.35rem 0; }
+
+/* The cold-start note. Deliberately not st.warning(): a yellow box would read as "something is
+   wrong", and nothing is wrong - a free tier spinning down is expected. Quiet text that is
+   already on screen while the first request is in flight does the job an alert cannot. */
+.wb-note {
+  color: var(--wb-muted);
+  font-size: 0.82rem;
+  opacity: 0.82;
+  margin: 0 0 0.85rem 0;
+  line-height: 1.5;
+}
+
+/* Sidebar: quieter than the main column, and tighter. */
+[data-testid="stSidebar"] { border-right: 1px solid var(--wb-border); }
+[data-testid="stSidebar"] h2 { margin-top: 1.2rem; }
+[data-testid="stSidebar"] li { margin-bottom: 0.3rem; }
+[data-testid="stSidebar"] p, [data-testid="stSidebar"] li { font-size: 0.88rem; }
+
+/* The one accent is spent on the Run button. */
+[data-testid="stBaseButton-primary"] {
+  font-weight: 600; letter-spacing: 0.01em; border-radius: 10px; padding: 0.55rem 1rem;
+}
+textarea { font-size: 0.95rem !important; }
+</style>
+"""
+
 
 def fetch_health() -> dict | None:
     """GET /health, or None when the service cannot be reached at all."""
@@ -70,22 +215,81 @@ def fetch_health() -> dict | None:
         return None
 
 
-def render() -> None:
-    """Draw the whole screen. Callers set st.set_page_config() first if they want one."""
-    st.title("Watchbird Memory")
-    st.caption(
-        "Screen an EU low-carbon-fuel news item, and see what the agent remembered about it from "
-        "before."
+def _anchor(whats_new: str, state: str) -> str:
+    """The 'what changed' panel as one HTML block.
+
+    Escaped: whats_new is assembled by the API, and an unescaped '<' would silently eat the rest
+    of the panel.
+    """
+    return (
+        f'<div class="wb-anchor {state}">'
+        '<div class="wb-label">What is new vs before</div>'
+        f'<div class="wb-say">{html.escape(whats_new)}</div>'
+        "</div>"
     )
 
-    # ── Which service is answering ────────────────────────────────────────
-    # On screen rather than in a config file, because a screenshot of this page should prove which
-    # host produced the numbers. Three onrender.com hosts answer 200 on /health and only one is this
-    # project (F11).
-    st.markdown("**Live service**")
-    st.code(API_BASE, language=None)
 
-    health = fetch_health()
+def _sidebar() -> None:
+    """Drawn before any network call — see the layout note in the module docstring."""
+    with st.sidebar:
+        st.header("How it works")
+        st.markdown(
+            "1. The item is **retrieved against the corpus** — RED III Art. 25, ReFuelEU Art. 4, "
+            "and the biodiesel duties.\n"
+            "2. The model returns a **grounded verdict**, citing chunk IDs. Citations it invents "
+            "are dropped, because they were never retrieved.\n"
+            "3. A **write gate** decides whether the verdict is worth remembering.\n"
+            "4. If it is, the story row is inserted or updated, and "
+            "**`whats_new_vs_before`** is computed against the row *as it was before* the write."
+        )
+        st.header("The write gate")
+        st.markdown(
+            "Stored only if **all five** hold:\n\n"
+            "- `ping` is true\n"
+            "- `citations` is non-empty\n"
+            "- `confidence` ≥ 0.6\n"
+            "- `stage` is one of the six allowed values\n"
+            "- an `instrument` is named — without one there is no key to file the story under\n\n"
+            "Otherwise it is skipped and the reason is reported. An ungrounded verdict must never "
+            "become a remembered fact."
+        )
+        st.caption(
+            "The news item is treated as untrusted data, never as instructions — try the injection "
+            "sample."
+        )
+
+
+def render() -> None:
+    """Draw the whole screen. Callers set st.set_page_config() first if they want one."""
+    st.markdown(STYLE, unsafe_allow_html=True)
+
+    # Sidebar first: it needs nothing from the network, so it must not sit behind a request
+    # that can block for the length of a cold start.
+    _sidebar()
+
+    # ── Masthead ──────────────────────────────────────────────────────────
+    st.markdown("# Watchbird Memory")
+    st.markdown(
+        '<div class="wb-sub">Screen an EU low-carbon-fuel news item, and see what the agent '
+        "remembered about it from before.</div>",
+        unsafe_allow_html=True,
+    )
+    # Written before fetch_health() is called, so it is already on screen during the wait it
+    # describes. A note that only appears after the slow thing finishes explains nothing.
+    st.markdown(
+        '<div class="wb-note">First load after idle takes up to 90 seconds — the API and this '
+        "app are on free tiers and spin down. Later requests are fast.</div>",
+        unsafe_allow_html=True,
+    )
+    # Which host produced these numbers. Three onrender.com hosts answer 200 on /health and only
+    # one is this project (F11), so a screenshot has to name it.
+    st.markdown(
+        f'<div class="wb-host">live service &nbsp;<b>{html.escape(API_BASE)}</b></div>',
+        unsafe_allow_html=True,
+    )
+
+    with st.spinner("Reaching the API…"):
+        health = fetch_health()
 
     # ── Memory panel ──────────────────────────────────────────────────────
     if health is None:
@@ -101,6 +305,7 @@ def render() -> None:
             "`whats_new_vs_before` cannot be computed. This is not the same as a story being new."
         )
     else:
+        st.markdown("## The store")
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Stories remembered", health.get("stories_remembered", "?"))
         col2.metric("Memory backend", health.get("memory_backend", "?"))
@@ -114,8 +319,8 @@ def render() -> None:
             st.warning(f"Service status is **{health.get('status')}** — see /health for detail.")
         if health.get("started_at"):
             # build_commit is what makes a screenshot verifiable: it says which commit produced
-            # these numbers, so a stale deployment cannot pass as the current one (CLAUDE.md rule 6,
-            # F11). None means the service is not running on Render.
+            # these numbers, so a stale deployment cannot pass as the current one (CLAUDE.md
+            # rule 6, F11). None means the service is not running on Render.
             commit = health.get("build_commit")
             build = f"build `{commit[:7]}`" if commit else "build unknown (not running on Render)"
             st.caption(
@@ -123,36 +328,8 @@ def render() -> None:
                 "the count above is read from Postgres, not from process memory."
             )
 
-    # ── Sidebar ───────────────────────────────────────────────────────────
-    with st.sidebar:
-        st.header("How it works")
-        st.markdown(
-            "1. The item is **retrieved against the corpus** — RED III Art. 25, ReFuelEU Art. 4, "
-            "and the biodiesel duties.\n"
-            "2. The model returns a **grounded verdict**, citing chunk IDs. Citations it invents "
-            "are dropped, because they were never retrieved.\n"
-            "3. A **write gate** decides whether the verdict is worth remembering.\n"
-            "4. If it is, the story row is inserted or updated, and "
-            "**`whats_new_vs_before`** is computed against the row *as it was before* the write."
-        )
-        st.header("The write gate")
-        st.markdown(
-            "Stored only if **all four** hold:\n\n"
-            "- `ping` is true\n"
-            "- `citations` is non-empty\n"
-            "- `confidence` ≥ 0.6\n"
-            "- `stage` is one of the six allowed values\n\n"
-            "Otherwise it is skipped and the reason is reported. An ungrounded verdict must never "
-            "become a remembered fact."
-        )
-        st.caption(
-            "The news item is treated as untrusted data, never as instructions — try the injection "
-            "sample."
-        )
-
     # ── Input ─────────────────────────────────────────────────────────────
-    st.divider()
-    st.header("Screen a news item")
+    st.markdown("## Screen a news item")
 
     sample = st.selectbox("Load a sample item", ["(write my own)"] + list(SAMPLE_ITEMS))
     if sample != "(write my own)" and st.button("Load this sample"):
@@ -181,16 +358,16 @@ def render() -> None:
 
                 # ── What is new: the headline answer ──────────────────────
                 st.divider()
-                st.header("What is new vs before")
                 whats_new = data.get("whats_new_vs_before", "")
                 if data.get("memory_reachable") is False:
-                    st.error(whats_new)
+                    state = "unknown"
                 elif whats_new.startswith("Moved from"):
-                    st.success(f"### {whats_new}")
+                    state = "moved"
                 elif whats_new.startswith("First time"):
-                    st.info(f"### {whats_new}")
+                    state = "first"
                 else:
-                    st.info(f"### {whats_new}")
+                    state = "first"
+                st.markdown(_anchor(whats_new, state), unsafe_allow_html=True)
 
                 after = fetch_health() or {}
                 col1, col2, col3 = st.columns(3)
@@ -229,8 +406,7 @@ def render() -> None:
                     )
 
                 # ── The verdict ───────────────────────────────────────────
-                st.divider()
-                st.header("The Ping")
+                st.markdown("## The ping")
 
                 if data.get("ping"):
                     st.markdown("### 🔔 Ping")
