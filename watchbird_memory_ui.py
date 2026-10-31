@@ -66,6 +66,22 @@ SAMPLE_ITEMS = {
     ),
 }
 
+# Questions for the Ask tab. The third is deliberately outside the corpus: the refusal is a
+# feature worth showing, not an error to hide. A RAG demo that only ever shows questions it can
+# answer tells you nothing about what it does when it cannot.
+ASK_SAMPLES = {
+    "In corpus — SAF share in 2030": (
+        "What minimum share of SAF must aviation fuel suppliers make available to aircraft "
+        "operators at Union airports in 2030?"
+    ),
+    "In corpus — transport target": (
+        "What transport target does RED III Article 25 set, and by when?"
+    ),
+    "Outside the corpus — expect a refusal": (
+        "What is the corporate tax rate for airlines in Ireland?"
+    ),
+}
+
 # One CSS block, injected once at the top of render(). Selectors are data-testid attributes
 # wherever possible, because Streamlit's generated class names change between releases while the
 # test ids are part of its public surface.
@@ -162,6 +178,27 @@ hr { margin: 1.75rem 0; border-color: var(--wb-border); }
   font-size: 1.45rem; font-weight: 600; letter-spacing: -0.02em;
   line-height: 1.35; color: #F2F5F9;
 }
+
+/* The answer panel on the Ask tab. Same visual language as the anchor, because it plays the
+   same role there: it is the thing the visitor came for. A refusal uses the alert colour and
+   says so plainly - a grounded tool declining to answer is the system working. */
+.wb-answer {
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-left: 4px solid var(--wb-moved);
+  border-radius: 14px;
+  padding: 1.4rem 1.6rem 1.45rem 1.6rem;
+  margin: 0.2rem 0 1rem 0;
+}
+.wb-answer.refused { border-left-color: var(--wb-alert); }
+.wb-answer .wb-label {
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--wb-muted); margin-bottom: 0.55rem;
+}
+.wb-answer .wb-body {
+  font-size: 1.05rem; line-height: 1.6; color: #EDF1F6;
+}
+.wb-answer.refused .wb-body { font-size: 1.15rem; font-weight: 600; color: #F2F5F9; }
 
 /* The service URL, as a quiet pill rather than a full-width code block. A screenshot has to
    show which host produced the numbers (F11), but it is provenance, not the headline. */
@@ -291,6 +328,22 @@ def render() -> None:
     with st.spinner("Reaching the API…"):
         health = fetch_health()
 
+    # Two modes. A visitor who types a question into a news-item box gets ping=false and a
+    # "not tracked" line, which looks like a failure and is not one - it is the screener
+    # correctly saying this is not a news item. Tabs make the two jobs separate.
+    tab_screen, tab_ask = st.tabs(["Screen a news item", "Ask the regulation"])
+
+    with tab_screen:
+        # The store panel belongs to this tab: it describes the memory that only /ping writes.
+        _store_panel(health)
+        _screen_tab()
+
+    with tab_ask:
+        _ask_tab()
+
+
+def _store_panel(health: dict | None) -> None:
+    """What the memory store holds right now. Screen tab only - /ask never writes to it."""
     # ── Memory panel ──────────────────────────────────────────────────────
     if health is None:
         st.error(
@@ -328,11 +381,16 @@ def render() -> None:
                 "the count above is read from Postgres, not from process memory."
             )
 
+
+def _screen_tab() -> None:
+    """POST /ping: screen a news item and show what was remembered."""
     # ── Input ─────────────────────────────────────────────────────────────
     st.markdown("## Screen a news item")
 
-    sample = st.selectbox("Load a sample item", ["(write my own)"] + list(SAMPLE_ITEMS))
-    if sample != "(write my own)" and st.button("Load this sample"):
+    sample = st.selectbox(
+        "Load a sample item", ["(write my own)"] + list(SAMPLE_ITEMS), key="screen_sample"
+    )
+    if sample != "(write my own)" and st.button("Load this sample", key="screen_load"):
         st.session_state["item_text"] = SAMPLE_ITEMS[sample]
 
     item_text = st.text_area(
@@ -342,7 +400,7 @@ def render() -> None:
         placeholder="Paste a news item about EU low-carbon-fuel policy or trade…",
     )
 
-    if st.button("Run", type="primary", use_container_width=True):
+    if st.button("Run", type="primary", use_container_width=True, key="screen_run"):
         if not item_text.strip():
             st.warning("Enter a news item first.")
         else:
@@ -468,3 +526,104 @@ def render() -> None:
                 except ValueError:
                     detail = response.text
                 st.error(f"API error ({response.status_code}): {detail}")
+
+
+def _ask_tab() -> None:
+    """POST /ask: answer a question from the corpus, or refuse when it is not in there.
+
+    Separate from the screener on purpose. /ask never touches the memory store, so there is no
+    story, no gate and no whats_new_vs_before here - only an answer, the chunk IDs it came from,
+    and a refusal when the corpus does not support one.
+    """
+    st.markdown("## Ask the regulation")
+    st.markdown(
+        '<div class="wb-note">Answers come only from the three documents in the corpus — '
+        "RED III Art. 25, ReFuelEU Art. 4, and the biodiesel duties. Ask about anything else and "
+        "it refuses rather than guesses.</div>",
+        unsafe_allow_html=True,
+    )
+
+    sample = st.selectbox(
+        "Load a sample question", ["(write my own)"] + list(ASK_SAMPLES), key="ask_sample"
+    )
+    if sample != "(write my own)" and st.button("Load this sample", key="ask_load"):
+        st.session_state["question_text"] = ASK_SAMPLES[sample]
+
+    question = st.text_input(
+        "Question",
+        key="question_text",
+        placeholder="What minimum share of SAF applies at Union airports in 2030?",
+    )
+
+    if st.button("Run", type="primary", use_container_width=True, key="ask_run"):
+        if not question.strip():
+            st.warning("Enter a question first.")
+            return
+        try:
+            with st.spinner("Retrieving and answering…"):
+                response = requests.post(
+                    f"{API_BASE}/ask",
+                    json={"question": question.strip()},
+                    timeout=PING_TIMEOUT_S,
+                )
+            response.raise_for_status()
+            data = response.json()
+
+            st.divider()
+            refused = bool(data.get("refused"))
+            answer = (data.get("answer") or "").strip()
+
+            # The refusal is a headline, not a footnote. It is the one behaviour that
+            # distinguishes a grounded answer from a plausible invention.
+            st.markdown(
+                f'<div class="wb-answer{" refused" if refused else ""}">'
+                f'<div class="wb-label">{"Refused — not in the corpus" if refused else "Answer"}'
+                "</div>"
+                f'<div class="wb-body">{html.escape(answer)}</div>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
+
+            col1, col2 = st.columns(2)
+            col1.metric(
+                "Grounded in",
+                f"{len(data.get('citations') or [])} chunk(s)",
+                help="Chunk IDs the answer cited that were actually retrieved.",
+            )
+            col2.metric("Confidence", f"{data.get('confidence', 0):.2f}")
+
+            citations = data.get("citations") or []
+            st.markdown("**Citations**")
+            if citations:
+                for cid in citations:
+                    st.markdown(f"- `{cid}`")
+            elif refused:
+                st.markdown(
+                    "_none, and correctly so — there is nothing in the corpus to cite for this "
+                    "question_"
+                )
+            else:
+                st.markdown("_none — an answer with no citations is not grounded in the corpus_")
+
+            st.caption(
+                f"Tokens used: {data.get('tokens_used')}  ·  "
+                f"Cost: ${data.get('cost_usd', 0):.6f}  ·  "
+                f"Refused: {refused}"
+            )
+
+            with st.expander("Raw response"):
+                st.json(data)
+
+        except requests.Timeout:
+            st.error(
+                f"The request timed out after {PING_TIMEOUT_S}s. A cold start plus a retrieval "
+                "and a model call can be slow — try again."
+            )
+        except requests.ConnectionError:
+            st.error(f"Lost connection to {API_BASE}.")
+        except requests.HTTPError:
+            try:
+                detail = response.json().get("detail", response.text)
+            except ValueError:
+                detail = response.text
+            st.error(f"API error ({response.status_code}): {detail}")
